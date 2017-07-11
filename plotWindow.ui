@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>547</width>
-    <height>358</height>
+    <width>717</width>
+    <height>457</height>
    </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>Plot selection</string>
@@ -19,22 +25,52 @@
   <layout class="QVBoxLayout" name="layout">
    <item>
     <widget class="QTabWidget" name="tabWidget">
+     <property name="accessibleName">
+      <string>tabWindow</string>
+     </property>
+     <property name="layoutDirection">
+      <enum>Qt::LeftToRight</enum>
+     </property>
+     <property name="tabShape">
+      <enum>QTabWidget::Rounded</enum>
+     </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>4</number>
+     </property>
+     <property name="tabBarAutoHide">
+      <bool>false</bool>
      </property>
      <widget class="QWidget" name="rawTab">
+      <property name="accessibleName">
+       <string>Raw</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
       <attribute name="title">
        <string>Raw</string>
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout"/>
      </widget>
      <widget class="QWidget" name="normalizedTab">
+      <property name="accessibleName">
+       <string>Normalized</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
       <attribute name="title">
        <string>Normalized</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout"/>
      </widget>
      <widget class="QWidget" name="decomposedTab">
+      <property name="accessibleName">
+       <string>Descomposed</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
       <attribute name="title">
        <string>Decomposed</string>
       </attribute>
@@ -47,12 +83,31 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
-         <property name="title">
-          <string>Frequency Bands</string>
+         <property name="layoutDirection">
+          <enum>Qt::LeftToRight</enum>
          </property>
-         <layout class="QVBoxLayout" name="verticalLayout_2">
-          <item>
+         <property name="title">
+          <string>Fre&amp;quency Bands</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="3" column="0">
+           <widget class="QCheckBox" name="betaCB">
+            <property name="accessibleName">
+             <string>beta</string>
+            </property>
+            <property name="text">
+             <string>beta</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
            <widget class="QCheckBox" name="deltaCB">
+            <property name="accessibleName">
+             <string>delta</string>
+            </property>
             <property name="text">
              <string>delta</string>
             </property>
@@ -61,18 +116,11 @@
             </property>
            </widget>
           </item>
-          <item>
-           <widget class="QCheckBox" name="thetaCB">
-            <property name="text">
-             <string>theta</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item>
+          <item row="2" column="0">
            <widget class="QCheckBox" name="alphaCB">
+            <property name="accessibleName">
+             <string>alpha</string>
+            </property>
             <property name="text">
              <string>alpha</string>
             </property>
@@ -81,10 +129,13 @@
             </property>
            </widget>
           </item>
-          <item>
-           <widget class="QCheckBox" name="betaCB">
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="thetaCB">
+            <property name="accessibleName">
+             <string>theta</string>
+            </property>
             <property name="text">
-             <string>beta</string>
+             <string>theta</string>
             </property>
             <property name="checked">
              <bool>true</bool>
@@ -97,12 +148,36 @@
       </layout>
      </widget>
      <widget class="QWidget" name="averagePowerBandTab">
+      <property name="accessibleName">
+       <string>Average Band Power</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
       <attribute name="title">
        <string>Average Band Power</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3"/>
      </widget>
+     <widget class="QWidget" name="slTab">
+      <property name="accessibleName">
+       <string>Synchronization Likelihood</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
+      <attribute name="title">
+       <string>Sychronization Likelihood</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_5"/>
+     </widget>
      <widget class="QWidget" name="featuresTab">
+      <property name="accessibleName">
+       <string>Other Features</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
       <attribute name="title">
        <string>Other Features</string>
       </attribute>
@@ -114,6 +189,9 @@
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
+         </property>
+         <property name="layoutDirection">
+          <enum>Qt::LeftToRight</enum>
          </property>
          <property name="title">
           <string>Features</string>
@@ -169,6 +247,56 @@
        </item>
       </layout>
      </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBox_3">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Log file selector</string>
+     </property>
+     <layout class="QHBoxLayout" name="horizontalLayout_4">
+      <item>
+       <widget class="QPushButton" name="loggerButton">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Save as...</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="loggerLabel">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>No file selected. Data won't be logged.</string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::RichText</enum>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>

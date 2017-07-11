@@ -8,14 +8,15 @@ import random
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PyQt5 import uic
-from PyQt5.QtCore import QObject, QThread, pyqtSlot, pyqtSignal, QMutex
+from PyQt5.QtCore import QObject, QThread, pyqtSlot, pyqtSignal, QSemaphore
 
 from eeglib.helpers import CSVHelper
 
 from loopTrigger import LoopTrigger
 from plots import *
+from options import OptionsDialog
 
-progname = "LEEGS"
+progname = "VEEGS"
 
 # States
 states = {
@@ -42,8 +43,9 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.__initRunInputs()
         self.__initRunButtons()
         self.__initNewPlotAction()
+        self.__initOptionsAction()
 
-        self.delay = 100
+        self.rtDelay = self.simDelay=0.1
 
         self.functions=[]
         self.windowList = []
@@ -59,6 +61,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.stopInput.setEnabled(playEl)
             self.actionNewPlot.setEnabled(rB and playEl)
             self.newPlotButton.setEnabled(rB and playEl)
+            self.actionOptions.setEnabled(playEl)
 
         if state == states["WAIT_EEG_S"]:
             enabledElements(True, True, False)
@@ -66,6 +69,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             enabledElements(True, True, True)
         elif state == states["WAIT_STOP"]:
             enabledElements(False, False, True, False)
+
+    def __initOptionsAction(self):
+        def openOptionsDialog():
+            od=OptionsDialog(parent=self, rtDelay=self.rtDelay,simDelay=self.simDelay)
+            od.show()
+        self.actionOptions.triggered.connect(openOptionsDialog)
 
     def __initNewPlotAction(self):
         def newPlotWindow():
@@ -84,7 +93,6 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             if filename[0] != "":
                 try:
                     self.helper = CSVHelper(filename[0])
-
                     self.__setState(states["WAIT_EEG_S"])
                     self.feedBackLabel.setText("File oppened properly")
                     self.stopInput.setText(str(len(self.helper) / 128))
@@ -149,30 +157,36 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.play(float(self.startInput.text()),
                       float(self.stopInput.text()))
 
-        def stop():
-            self.__setState(states["WAIT_PLAY"])
-
-            self.stopSignal.emit()
-            self.loopThread.quit()
-            self.loopThread.wait()
-
         self.playButton.clicked.connect(play)
-        self.stopButton.clicked.connect(stop)
+        self.stopButton.clicked.connect(self.stop)
+
+    def stop(self):
+        self.__setState(states["WAIT_PLAY"])
+
+        self.semaphore.release(1)
+        self.stopSignal.emit()
+        self.loopThread.quit()
+        self.loopThread.wait()
 
     def play(self, start, stop):
         sr = self.eegSettings["sampleRate"]
-        step = sr * self.delay / 1000
+        step = sr * self.simDelay
         self.timePosition = start
         self.helper.prepareIterator(
             step, int(start * sr), int(stop * sr))
         self.iterator = self.helper.__iter__()
+        try:
+            self.iterator.__next__()
+        except:
+            QtWidgets.QMessageBox.warning(self, "Error",
+                                          "The start and stop points are too close",
+                                          QtWidgets.QMessageBox.Ok)
 
         for window in self.windowList:
-            window.compute_initial_figure(start*1000)
+            window.initAnimation(start)
 
-        self.mutex=QMutex(QMutex.Recursive)
-        self.mutex.lock()
-        loop = LoopTrigger(self.mutex)
+        self.semaphore=QSemaphore(0)
+        loop = LoopTrigger(self.semaphore,minDelay=self.rtDelay)
         self.loopThread = QThread()
         loop.moveToThread(self.loopThread)
 
@@ -190,18 +204,20 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def __playAnimation(self):
         try:
             self.iterator.__next__()
+            self.helper.auxPoint,"/",self.helper.endPoint
             for f in self.functions:
                 try:
                     f()
                 except:
                     self.functions.remove(f)
-            self.mutex.unlock()
-        except StopIteration:
+            qApp.processEvents()
+            self.semaphore.release(1)
+        except:
             self.stop()
 
     @pyqtSlot()
     def __updateFields(self):
-        self.timePosition += self.delay / 1000
+        self.timePosition += self.simDelay
         self.startInput.setText("%.2f" % self.timePosition)
 
     def deleteWinFromList(self, win):

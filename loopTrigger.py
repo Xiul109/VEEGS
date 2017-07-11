@@ -7,19 +7,19 @@ from PyQt5.QtWidgets import QApplication
 class LoopTrigger(QObject):
     sigUpdate=pyqtSignal()
 
-    def __init__(self,mutex, maxDelay=0.1):
+    def __init__(self,semaphore, minDelay=0.1):
         super().__init__()
-        self.maxDelay = maxDelay
+        self.minDelay = minDelay
         self.doLoop = True
         self.app= QApplication.instance()
-        self.mutex=mutex
+        self.semaphore=semaphore
 
     @pyqtSlot()
     def loop(self):
         while self.doLoop:
-            t = time.time() + self.maxDelay
+            t = time.time() + self.minDelay
             self.sigUpdate.emit()
-            self.mutex.lock()
+            self.semaphore.acquire(1)
             waitTime = t - time.time()
             waitTime = waitTime if waitTime >= 0 else 0
             time.sleep(waitTime)

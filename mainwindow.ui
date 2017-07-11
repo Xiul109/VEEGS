@@ -7,11 +7,11 @@
     <x>0</x>
     <y>0</y>
     <width>220</width>
-    <height>535</height>
+    <height>575</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string notr="true">LEEGS</string>
+   <string notr="true">VEEGS</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout">
@@ -274,6 +274,8 @@
     </property>
     <addaction name="actionBrowse"/>
     <addaction name="actionNewPlot"/>
+    <addaction name="separator"/>
+    <addaction name="actionOptions"/>
    </widget>
    <addaction name="menuFile"/>
   </widget>
@@ -289,6 +291,14 @@
    </property>
    <property name="text">
     <string>&amp;New Plot Window</string>
+   </property>
+  </action>
+  <action name="actionOptions">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Options</string>
    </property>
   </action>
  </widget>

@@ -1,24 +1,23 @@
-import matplotlib
-matplotlib.use('Qt5Agg')
-
 from numpy import arange
 import numpy as np
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
 
-from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5 import uic
-
-from eeglib.eeg import SampleWindow
+from PyQt5 import QtCore, QtWidgets, QtGui, uic
 
 import pyqtgraph
+from pyqtgraph import PlotWidget
+
+import csv
+
+from eeglib.eeg import defaultBands
+
+defaultBandsNames = list(defaultBands.keys())
 
 
 class ChannelSelector(QtWidgets.QGroupBox):
 
-    def __init__(self, nChannels, parent=None):
+    def __init__(self, nChannels, parent=None, title="Channel Selector"):
         QtWidgets.QGroupBox.__init__(self, parent)
-        self.setTitle("Channel Selector")
+        self.setTitle(title)
         self.channel = 0
         rows = int(np.ceil(np.sqrt(nChannels)))
         grid = QtWidgets.QGridLayout()
@@ -51,6 +50,7 @@ class PlotWindow(QtWidgets.QDialog):
 
         self.__initApButton()
         self.__initClose()
+        self.__initLogger()
 
         electrodes = parent.helper.electrodeNumber
 
@@ -67,13 +67,20 @@ class PlotWindow(QtWidgets.QDialog):
         self.averageBPSelector = ChannelSelector(electrodes, self)
         self.tabWidget.widget(3).layout().addWidget(self.averageBPSelector)
 
-        self.featuresSelector = ChannelSelector(electrodes, self)
-        self.tabWidget.widget(4).layout().addWidget(self.featuresSelector)
+        self.SL1Selector = ChannelSelector(
+            electrodes, self, "Channel 1 Selector")
+        self.tabWidget.widget(4).layout().addWidget(self.SL1Selector)
+        self.SL2Selector = ChannelSelector(electrodes, self, "Channel 2 Selector")
+        self.tabWidget.widget(4).layout().addWidget(self.SL2Selector)
+
+        self.featuresSelector = ChannelSelector(
+            electrodes, self)
+        self.tabWidget.widget(5).layout().addWidget(self.featuresSelector)
 
     def __initApButton(self):
         def addPlot():
             tIndex = self.tabWidget.currentIndex()
-            tab = self.tabWidget.tabText(tIndex)[1:]
+            tab = self.tabWidget.currentWidget().accessibleName()
             text = self.nameTB.text()
             self.setWindowTitle(text if text != "" else tab)
 
@@ -93,20 +100,28 @@ class PlotWindow(QtWidgets.QDialog):
                 function = lambda channel=self.decomposedSelector.channel: self.parentWidget(
                 ).helper.getEEG().getBandsSignalsAt(channel)
                 self.canvasClass = DescomposedTimeSignalCanvas
-                self.canvasArgs = (self.eegSettings["sampleRate"], self.eegSettings[
-                                   "windowSize"], self.selectedBands(), function)
+                self.canvasArgs = (self.selectedBands(), self.eegSettings["sampleRate"], self.eegSettings[
+                                   "windowSize"], function)
             elif tIndex == 3:
                 self.canvasClass = AverageBandPowerCanvas
-                self.canvasArgs = (lambda channel=self.averageBPSelector.channel: self.parentWidget(
-                ).helper.getEEG().getAverageBandValuesAt(channel),)
+                self.canvasArgs = (defaultBandsNames,
+                                   lambda channel=self.averageBPSelector.channel: self.parentWidget(
+                                   ).helper.getEEG().getAverageBandValuesAt(channel))
             elif tIndex == 4:
                 self.canvasClass = FeaturesCanvas
+                function = lambda c1=self.SL1Selector.channel, c2=self.SL2Selector.channel: {
+                    "Synchronization Likelihood": self.parentWidget().helper.getEEG().synchronizationLikelihood(c1, c2)}
+                self.canvasArgs = (["Synchronization Likelihood"], function)
+            elif tIndex == 5:
+                self.canvasClass = FeaturesCanvas
                 funcs, names = self.getFeaturesFuncsAndNames()
-                function = lambda: [f() for f in funcs]
-                self.canvasArgs = [names, function]
+                function = lambda: {name: f() for f, name in zip(funcs, names)}
+                self.canvasArgs = (names, function)
             else:
                 raise Exception("That tab doesn't exist")
             self.cleanWidgets()
+            self.canvasKargs = {
+                "logFileName": self.loggerFile} if self.loggerFile else {}
             self.addCanvas()
 
         self.apButton.clicked.connect(addPlot)
@@ -115,16 +130,35 @@ class PlotWindow(QtWidgets.QDialog):
         self.finished.connect(
             lambda: self.parentWidget().deleteWinFromList(self))
 
+    def __initLogger(self):
+        self.loggerFile = None
+        messageNoFile = "No file selected. Data won't be logged."
+        messageFile = 'File selected:"{}" . Click here to deselect it.'
+        def deselectFile(event):
+            self.loggerFile = None
+            self.loggerLabel.mouseReleaseEvent = lambda e: None
+            self.loggerLabel.setText(messageNoFile)
+        def openFileDialog():
+            filename = QtWidgets.QFileDialog.getSaveFileName(
+                self, filter="CSV-Files (*.csv)")
+            if filename[0] != "":
+                self.loggerFile = filename[0]
+                self.loggerLabel.setText(messageFile.format(filename[0]))
+                self.loggerLabel.mouseReleaseEvent = deselectFile
+
+        self.loggerButton.clicked.connect(openFileDialog)
+
     def cleanWidgets(self):
         for _ in range(self.layout.count()):
             self.layout.takeAt(0).widget().setParent(None)
 
     def addCanvas(self):
-        dc = self.canvasClass(*self.canvasArgs, self,
-                              width=5,  height=4, dpi=100)
+        dc = PlotWidget(self)
         l = self.layout
         l.addWidget(dc)
-        self.canvas = dc
+        self.canvas = self.canvasClass(
+            *self.canvasArgs, dc, **self.canvasKargs)
+        self.destroyed.connect(self.canvas.closeFile)
         return dc
 
     def reset(self):
@@ -134,14 +168,14 @@ class PlotWindow(QtWidgets.QDialog):
 
     def update(self):
         if hasattr(self, "canvas"):
-            self.canvas.update_figure(self.parentWidget().delay)
+            self.canvas.update_figure(self.parentWidget().simDelay)
 
-    def compute_initial_figure(self, start):
+    def initAnimation(self, start):
         if hasattr(self, "canvas"):
-            self.canvas.compute_initial_figure(start)
+            self.canvas.initAnimation(start)
 
     def selectedBands(self):
-        return [x.text()[1:] for x in self.bandsCBs if x.isChecked()]
+        return [x.accessibleName() for x in self.bandsCBs if x.isChecked()]
 
     def getFeaturesFuncsAndNames(self):
         channel = self.featuresSelector.channel
@@ -175,92 +209,46 @@ class PlotWindow(QtWidgets.QDialog):
         return featuresFuncs, featuresNames
 
 
-class BaseCanvas(FigureCanvas):
+class BaseCanvas():
+    timeField = "time(s)"
 
-    def __init__(self, func, parent=None, width=5, height=4, dpi=100):
-        self.fig = Figure(figsize=(width, height), dpi=dpi)
-
-        FigureCanvas.__init__(self, self.fig)
-        self.setParent(parent)
-
+    def __init__(self, func, plot, logFileName=None):
         self.func = func
+        self.axes = plot
+        if logFileName:
+            self.logMode = True
+            self.logFileName = logFileName
+            self.logFile = open(self.logFileName, "w")
+            self.initLogFile()
+        else:
+            self.logMode = False
 
-        FigureCanvas.setSizePolicy(self,
-                                   QtWidgets.QSizePolicy.Expanding,
-                                   QtWidgets.QSizePolicy.Expanding)
-        FigureCanvas.updateGeometry(self)
+    def initAnimation(self, start):
+        self.sec = start
 
-    def compute_initial_figure(self, start):
-        pass
+    def update_figure(self, delay):
+        self.sec += delay
 
-    def update_figure(self):
-        pass
+    def closeFile(self):
+        if self.logMode:
+            self.logFile.close()
 
-    def play(self):
-        pass
-
-    def pause(self):
-        pass
+    def initLogFile(self, fieldnames=[]):
+        self.writer = csv.DictWriter(self.logFile, fieldnames=fieldnames)
+        self.writer.writeheader()
 
 
 class TimeSignalCanvas(BaseCanvas):
+    signalField = "signal"
 
-    def __init__(self, sampleRate, windowSize, *args, dataAlpha=0.85, dataBoundsMultiplier=0.03, **kwargs):
-        self.__initAttributes__(sampleRate, windowSize,
-                                dataAlpha, dataBoundsMultiplier)
-
-        BaseCanvas.__init__(self, *args, **kwargs)
-
-        self.axes = self.fig.add_subplot(111)
-
-    def __initAttributes__(self, sampleRate, windowSize, dataAlpha, dataBoundsMultiplier):
-        self.sampleRate = sampleRate
-        self.windowSize = windowSize
-        self.dataAlpha = dataAlpha
-        self.dataBoundsMultiplier = dataBoundsMultiplier
-
-        self.duration = self.windowSize / self.sampleRate
-        self.arange = arange(0, self.duration, self.duration / self.windowSize)
-
-    def makePlot(self, y, first=False):
-        if first:
-            self.dataUpperBound = max(y) * (1 + self.dataBoundsMultiplier)
-            self.dataLowerBound = min(y) * (1 - self.dataBoundsMultiplier)
-        else:
-            self.dataUpperBound = self.dataUpperBound * \
-                self.dataAlpha + max(y) * (1 - self.dataAlpha) * \
-                (1 + self.dataBoundsMultiplier)
-            self.dataLowerBound = self.dataLowerBound * \
-                self.dataAlpha + min(y) * (1 - self.dataAlpha) * \
-                (1 - self.dataBoundsMultiplier)
-
-        s1 = self.ms / 1000
-        x = self.arange + s1
-        self.axes.set_ylim([self.dataLowerBound, self.dataUpperBound])
-        self.axes.plot(x, y)
-
-    def compute_initial_figure(self, start):
-        self.ms = start
-        self.makePlot(self.func(), True)
-
-    def update_figure(self, delay):
-        self.ms += delay
-        self.axes.cla()
-        self.makePlot(self.func())
-        self.draw()
-
-
-class DescomposedTimeSignalCanvas(BaseCanvas):
-
-    def __init__(self, sampleRate, windowSize, bands, *args, **kwargs):
+    def __init__(self, sampleRate, windowSize, *args, **kwargs):
         self.__initAttributes__(sampleRate, windowSize)
 
         BaseCanvas.__init__(self, *args, **kwargs)
 
-        self.bands = bands
-        nBands = len(bands)
-        self.subplots = {band: self.fig.add_subplot(
-            nBands, 1, i + 1, title=band) for i, band in enumerate(bands)}
+    def initLogFile(self):
+        self.fieldnames = [self.timeField, self.signalField]
+        super().initLogFile(self.fieldnames)
 
     def __initAttributes__(self, sampleRate, windowSize):
         self.sampleRate = sampleRate
@@ -269,55 +257,124 @@ class DescomposedTimeSignalCanvas(BaseCanvas):
         self.duration = self.windowSize / self.sampleRate
         self.arange = arange(0, self.duration, self.duration / self.windowSize)
 
-    def makeSubplot(self, subplot, y):
-        s1 = self.ms / 1000
+    def makePlot(self, x, y):
+        self.plot = self.axes.plot(x, y, clear=True)
+
+    def getXY(self):
+        y = self.func()
+        s1 = self.sec
         x = self.arange + s1
-        subplot.plot(x, y)
+        return x, y
 
-    def makeSubplots(self):
-        for key, y in self.func().items():
-            if key in self.bands:
-                self.makeSubplot(self.subplots[key], y)
+    def write(self, fieldnames, data):
+        self.writer.writerows(
+            [{field: value[i] for field, value in zip(fieldnames, data)} for i in range(len(data[0]))])
 
-    def compute_initial_figure(self, start):
-        self.ms = start
-        self.makeSubplots()
+    def initAnimation(self, start):
+        super().initAnimation(start)
+        x, y = self.getXY()
+        self.makePlot(x, y)
+        if self.logMode:
+            self.write(self.fieldnames, [x, y])
 
     def update_figure(self, delay):
-        self.ms += delay
+        super().update_figure(delay)
+        newDataStart = -int(self.sampleRate * (delay))
+        x, y = self.getXY()
+        self.makePlot(x, y)
+        if self.logMode:
+            self.write(self.fieldnames, [x[newDataStart:], y[newDataStart:]])
+
+
+class DescomposedTimeSignalCanvas(TimeSignalCanvas):
+
+    def __init__(self, bands, *args, **kwargs):
+        self.bands = bands
+
+        TimeSignalCanvas.__init__(self, *args, **kwargs)
+
+        self.axes.addLegend()
+        self.legend = self.axes.getPlotItem().legend
+
+    def initLogFile(self):
+        self.fieldnames = [self.timeField] + self.bands
+        BaseCanvas.initLogFile(self, self.fieldnames)
+
+    def makeSubplot(self, x, i, band, y):
+        return self.axes.plot(x, y, name=band, pen=pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, 13)))
+
+    def makeSubplots(self, x, ys):
+        self.plots = [self.makeSubplot(x, i, band, y) for i, (band, y) in enumerate(
+            ys.items())]
+
+    def getXY(self):
+        x, ys = super().getXY()
+        return x, {band: values for band, values in ys.items() if band in self.bands}
+
+    def initAnimation(self, start):
+        BaseCanvas.initAnimation(self, start)
+        if hasattr(self, "plots"):
+            self.cleanSubplots()
+        x, ys = self.getXY()
+        self.makeSubplots(x, ys)
+        if self.logMode:
+            self.write(self.fieldnames, [x] + list(ys.values()))
+
+    def update_figure(self, delay):
+        BaseCanvas.update_figure(self, delay)
+        newDataStart = -int(self.sampleRate * (delay))
         self.cleanSubplots()
-        self.makeSubplots()
-        self.draw()
+        x, ys = self.getXY()
+        self.makeSubplots(x, ys)
+        if self.logMode:
+            self.write(self.fieldnames, [v[newDataStart:]
+                                         for v in [x] + list(ys.values())])
 
     def cleanSubplots(self):
-        for band, subplot in self.subplots.items():
-            subplot.cla()
-            subplot.set_title(band, fontsize=12, y=1.08)
+        for plot, band in zip(self.plots, self.bands):
+            plot.clear()
+            self.legend.removeItem(band)
 
 
 class AverageBandPowerCanvas(BaseCanvas):
 
-    def __init__(self, *args, **kwargs):
-
+    def __init__(self, bands, *args, **kwargs):
+        self.bands = bands
         BaseCanvas.__init__(self, *args, **kwargs)
+        self.xAxe = self.axes.getAxis("bottom")
+        self.x = list(range(len(bands)))
+        self.sum = {band: 0 for band in bands}
+        self.names = {band: band for band in bands}
+        self.count = 0
 
-        self.axes = self.fig.add_subplot(111)
+    def initLogFile(self):
+        self.fieldnames = [self.timeField] + self.bands
+        super().initLogFile(self.fieldnames)
 
-    def makePlot(self):
-        data = self.func()
-        bands = list(data.keys())
-        x = np.arange(len(bands))
-        self.axes.set_xticks(x)
-        self.axes.set_xticklabels(bands)
-        self.axes.bar(x, list(data.values()))
-
-    def compute_initial_figure(self, start):
-        self.makePlot()
+    def makePlot(self, data, names):
+        self.xAxe.setTicks([list(zip(self.x, names))])
+        self.plot = self.axes.plot(
+            self.x, list(data.values()), symbol="o", clear=True)
 
     def update_figure(self, delay):
-        self.axes.cla()
-        self.makePlot()
-        self.draw()
+        super().update_figure(delay)
+        data = self.func()
+        self.count += 1
+        for band in data:
+            self.sum[band] += data[band]
+            self.names[band] = band + \
+                ": {:.4f}".format(self.sum[band] / self.count)
+        self.makePlot(data, list(self.names.values()))
+        if self.logMode:
+            self.write([self.sec] + list(data.values()))
+
+    def initAnimation(self, start):
+        super().initAnimation(start)
+        self.update_figure(0)
+
+    def write(self, data):
+        row = {fieldname: d for fieldname, d in zip(self.fieldnames, data)}
+        self.writer.writerow(row)
 
 
 class FeaturesCanvas(BaseCanvas):
@@ -327,36 +384,52 @@ class FeaturesCanvas(BaseCanvas):
 
         BaseCanvas.__init__(self, *args, **kwargs)
 
-        self.axes = self.fig.add_subplot(111)
+        self.legend = self.axes.addLegend()
 
-    def __initAttributes__(self, featuresNames, innerWindowSize=64):
-
-        self.innerWindowSize = innerWindowSize
+    def __initAttributes__(self, featuresNames):
         self.featuresNames = featuresNames
         self.nFeatures = len(featuresNames)
+        self.data = {name: [] for name in featuresNames}
+        self.time = []
+        self.sum = {name: 0 for name in featuresNames}
+        self.legendNames = {name: name for name in featuresNames}
+        self.count = 0
+
+    def initLogFile(self):
+        self.fieldnames = [self.timeField] + self.featuresNames
+        super().initLogFile(self.fieldnames)
 
     def makePlots(self):
-        s1 = self.ms / 1000
-        x = self.arange + s1
-        for i, name in enumerate(self.featuresNames):
-            y = list(reversed(self.slidingWindow.getComponentAt(i)))
-            self.axes.plot(x, y, label=name)
-        self.axes.legend()
+        for plot, (fName, data) in zip(self.plots, self.data.items()):
+            plot.setData(self.time, data)
+            for sample, label in self.legend.items:
+                if sample.item == plot:
+                    label.setText(self.legendNames[fName])
 
-    def compute_initial_figure(self, start):
-        self.ms = start
-        self.firstCall = True
-        self.slidingWindow = SampleWindow(self.innerWindowSize, self.nFeatures)
+    def initAnimation(self, start):
+        super().initAnimation(start)
+        if hasattr(self, "plots"):
+            for p in self.plots:
+                p.clear()
+        self.plots = [self.axes.plot(self.time, self.data[name], name=name, pen=pyqtgraph.mkPen(
+            pyqtgraph.intColor(3 * i, self.nFeatures * 3))) for i, name in enumerate(self.featuresNames)]
+        self.update_figure(0)
 
     def update_figure(self, delay):
-        if self.firstCall:
-            duration = delay * self.innerWindowSize / 1000
-            self.ms -= int(duration * 1000)
-            self.arange = arange(0, duration, duration / self.innerWindowSize)
-            self.firstCall = False
-        self.ms += delay
-        self.axes.cla()
+        self.sec += delay
+        self.count += 1
+        currentTime = self.sec
+        self.time.append(currentTime)
         data = self.func()
-        self.slidingWindow.add(data)
+        for fName, fValue in data.items():
+            self.data[fName].append(fValue)
+            self.sum[fName] += fValue
+            self.legendNames[fName] = fName + \
+                ": {:.4f}".format(self.sum[fName] / self.count)
         self.makePlots()
-        self.draw()
+        if self.logMode:
+            data[self.timeField] = currentTime
+            self.write(data)
+
+    def write(self, data):
+        self.writer.writerow(data)
