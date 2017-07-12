@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import sys
+
+from PyQt5 import QtWidgets
+
+from veegs.mainApp import *
+
+qApp = QtWidgets.QApplication(sys.argv)
+aw = ApplicationWindow()
+aw.setWindowTitle("%s" % progname)
+aw.show()
+sys.exit(qApp.exec_())

@@ -7,6 +7,7 @@ import pyqtgraph
 from pyqtgraph import PlotWidget
 
 import csv
+import os
 
 from eeglib.eeg import defaultBands
 
@@ -44,7 +45,8 @@ class PlotWindow(QtWidgets.QDialog):
     def __init__(self, parent=None):
         QtWidgets.QDialog.__init__(self, parent)
         self.eegSettings = parent.eegSettings
-        uic.loadUi("plotWindow.ui", self)
+        selfdir=os.path.dirname(__file__)
+        uic.loadUi(os.path.join(selfdir,"plotWindow.ui"), self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setModal(False)
 

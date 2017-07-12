@@ -1,10 +1,13 @@
+import os
+
 from PyQt5 import QtCore, QtWidgets, QtGui,uic
 
 class OptionsDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None, rtDelay=0.1, simDelay=0.1):
         QtWidgets.QDialog.__init__(self, parent)
-        uic.loadUi("optionsDialog.ui", self)
+        selfdir=os.path.dirname(__file__)
+        uic.loadUi(os.path.join(selfdir,"optionsDialog.ui"), self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
         self.__initInputs(rtDelay,simDelay)

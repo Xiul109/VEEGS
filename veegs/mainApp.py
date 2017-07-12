@@ -6,15 +6,14 @@ import sys
 import os
 import random
 
-from PyQt5 import QtCore, QtWidgets, QtGui
-from PyQt5 import uic
+from PyQt5 import QtCore, QtWidgets, QtGui, uic
 from PyQt5.QtCore import QObject, QThread, pyqtSlot, pyqtSignal, QSemaphore
 
 from eeglib.helpers import CSVHelper
 
-from loopTrigger import LoopTrigger
-from plots import *
-from options import OptionsDialog
+from veegs.loopTrigger import LoopTrigger
+from veegs.plots import *
+from veegs.options import OptionsDialog
 
 progname = "VEEGS"
 
@@ -33,8 +32,11 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
-        uic.loadUi("mainwindow.ui", self)
+        selfdir=os.path.dirname(__file__)
+        uic.loadUi(os.path.join(selfdir,"mainwindow.ui"), self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        self.app= QtWidgets.QApplication.instance()
+
         self.eegSettings = {}
 
         self.__initEEGSettingsInputs()
@@ -204,15 +206,15 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def __playAnimation(self):
         try:
             self.iterator.__next__()
-            self.helper.auxPoint,"/",self.helper.endPoint
             for f in self.functions:
                 try:
                     f()
                 except:
                     self.functions.remove(f)
-            qApp.processEvents()
+            self.app.processEvents()
             self.semaphore.release(1)
-        except:
+        except Exception as e:
+            print(e)
             self.stop()
 
     @pyqtSlot()
