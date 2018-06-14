@@ -4,10 +4,9 @@
 from __future__ import unicode_literals
 import sys
 import os
-import random
 
 from PyQt5 import QtCore, QtWidgets, QtGui, uic
-from PyQt5.QtCore import QObject, QThread, pyqtSlot, pyqtSignal, QSemaphore
+from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QSemaphore
 
 from eeglib.helpers import CSVHelper
 
@@ -16,14 +15,6 @@ from veegs.plots import *
 from veegs.options import OptionsDialog
 
 progname = "VEEGS"
-
-# States
-states = {
-    "INITIAL":      0,
-    "WAIT_EEG_S":   1,
-    "WAIT_PLAY":    2,
-    "WAIT_STOP":    3,
-}
 
 
 class ApplicationWindow(QtWidgets.QMainWindow):
@@ -39,9 +30,9 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         self.eegSettings = {}
 
-        self.__initEEGSettingsInputs()
+        self.__initWindowSizeInput()
         self.__initBrowseButton()
-        self.__initSetEEGSettingsButton(self.setEEGSettingsButton)
+        self.__initSetWindowSizeButton(self.setWindowSizeButton)
         self.__initRunInputs()
         self.__initRunButtons()
         self.__initNewPlotAction()
@@ -56,7 +47,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         def enabledElements(dsB, esB, rB, playEl=True):
             self.dataSourceBox.setEnabled(dsB)
             self.actionBrowse.setEnabled(dsB)
-            self.EEGSettingsBox.setEnabled(esB)
+            self.windowSizeBox.setEnabled(esB)
             self.runBox.setEnabled(rB)
             self.playButton.setEnabled(playEl)
             self.startInput.setEnabled(playEl)
@@ -65,11 +56,9 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.newPlotButton.setEnabled(rB and playEl)
             self.actionOptions.setEnabled(playEl)
 
-        if state == states["WAIT_EEG_S"]:
-            enabledElements(True, True, False)
-        elif state == states["WAIT_PLAY"]:
+        if state == "WAIT_PLAY":
             enabledElements(True, True, True)
-        elif state == states["WAIT_STOP"]:
+        elif state == "WAIT_STOP":
             enabledElements(False, False, True, False)
 
     def __initOptionsAction(self):
@@ -94,8 +83,10 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 self, filter="CSV-Files (*.csv)")
             if filename[0] != "":
                 try:
-                    self.helper = CSVHelper(filename[0])
-                    self.__setState(states["WAIT_EEG_S"])
+                    sr=self.eegSettings["sampleRate"] = int(
+                                                   self.sampleRateInput.text())
+                    self.helper = CSVHelper(filename[0],sampleRate=sr)
+                    self.__setState("WAIT_PLAY")
                     self.feedBackLabel.setText("File oppened properly")
                     self.stopInput.setText(str(len(self.helper) / 128))
                 except IOError:
@@ -115,7 +106,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.browseButton.clicked.connect(openFileDialog)
         self.actionBrowse.triggered.connect(openFileDialog)
 
-    def __initEEGSettingsInputs(self):
+    def __initWindowSizeInput(self):
         def checkText(inputLine, text):
             if text == "":
                 enabled = False
@@ -124,7 +115,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 enabled = True
                 styleSheet = ""
             inputLine.setStyleSheet(styleSheet)
-            self.setEEGSettingsButton.setEnabled(enabled)
+            self.setWindowSizeButton.setEnabled(enabled)
 
         srInput = self.sampleRateInput
         srInput.setValidator(QtGui.QIntValidator())
@@ -134,19 +125,16 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         wsInput.setValidator(QtGui.QIntValidator())
         wsInput.textChanged.connect(lambda text: checkText(wsInput, text))
 
-    def __initSetEEGSettingsButton(self, button):
-        def setEEGSettings():
-            self.eegSettings["sampleRate"] = int(self.sampleRateInput.text())
+    def __initSetWindowSizeButton(self, button):
+        def setWindowSize():         
             self.eegSettings["windowSize"] = int(self.windowSizeInput.text())
-            self.windowFunction = self.windowFunctionCB.currentText()
             self.feedBackLabel.setText("New settings have been setted")
-            self.__setState(states["WAIT_PLAY"])
-            self.helper.prepareEEG(
-                self.eegSettings["windowSize"], self.eegSettings["sampleRate"])
+            self.__setState("WAIT_PLAY")
+            self.helper.prepareEEG(self.eegSettings["windowSize"])
             for win in self.windowList:
                 win.reset()
 
-        button.clicked.connect(setEEGSettings)
+        button.clicked.connect(setWindowSize)
 
     def __initRunInputs(self):
         self.startInput.setValidator(QtGui.QDoubleValidator())
@@ -154,7 +142,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     def __initRunButtons(self):
         def play():
-            self.__setState(states["WAIT_STOP"])
+            self.__setState("WAIT_STOP")
 
             self.play(float(self.startInput.text()),
                       float(self.stopInput.text()))
@@ -163,7 +151,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.stopButton.clicked.connect(self.stop)
 
     def stop(self):
-        self.__setState(states["WAIT_PLAY"])
+        self.__setState("WAIT_PLAY")
 
         self.semaphore.release(1)
         self.stopSignal.emit()

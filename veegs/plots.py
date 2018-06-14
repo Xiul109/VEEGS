@@ -54,30 +54,27 @@ class PlotWindow(QtWidgets.QDialog):
         self.__initClose()
         self.__initLogger()
 
-        electrodes = parent.helper.electrodeNumber
+        nChannels = parent.helper.nChannels
 
-        self.rawSelector = ChannelSelector(electrodes, self)
+        self.rawSelector = ChannelSelector(nChannels, self)
         self.tabWidget.widget(0).layout().addWidget(self.rawSelector)
 
-        self.normalizedSelector = ChannelSelector(electrodes, self)
-        self.tabWidget.widget(1).layout().addWidget(self.normalizedSelector)
-
-        self.decomposedSelector = ChannelSelector(electrodes, self)
-        self.tabWidget.widget(2).layout().addWidget(self.decomposedSelector)
+        self.decomposedSelector = ChannelSelector(nChannels, self)
+        self.tabWidget.widget(1).layout().addWidget(self.decomposedSelector)
         self.bandsCBs = [self.deltaCB, self.thetaCB, self.alphaCB, self.betaCB]
 
-        self.averageBPSelector = ChannelSelector(electrodes, self)
-        self.tabWidget.widget(3).layout().addWidget(self.averageBPSelector)
+        self.averageBPSelector = ChannelSelector(nChannels, self)
+        self.tabWidget.widget(2).layout().addWidget(self.averageBPSelector)
 
         self.SL1Selector = ChannelSelector(
-            electrodes, self, "Channel 1 Selector")
-        self.tabWidget.widget(4).layout().addWidget(self.SL1Selector)
-        self.SL2Selector = ChannelSelector(electrodes, self, "Channel 2 Selector")
-        self.tabWidget.widget(4).layout().addWidget(self.SL2Selector)
+            nChannels, self, "Channel 1 Selector")
+        self.tabWidget.widget(3).layout().addWidget(self.SL1Selector)
+        self.SL2Selector = ChannelSelector(nChannels, self, "Channel 2 Selector")
+        self.tabWidget.widget(3).layout().addWidget(self.SL2Selector)
 
         self.featuresSelector = ChannelSelector(
-            electrodes, self)
-        self.tabWidget.widget(5).layout().addWidget(self.featuresSelector)
+            nChannels, self)
+        self.tabWidget.widget(4).layout().addWidget(self.featuresSelector)
 
     def __initApButton(self):
         def addPlot():
@@ -88,33 +85,28 @@ class PlotWindow(QtWidgets.QDialog):
 
             if tIndex == 0:
                 function = lambda channel=self.rawSelector.channel: self.parentWidget(
-                ).helper.getEEG().getRawDataAt(channel)
+                ).helper.getEEG().getChannel(channel)
                 self.canvasClass = TimeSignalCanvas
                 self.canvasArgs = (self.eegSettings["sampleRate"], self.eegSettings[
                                    "windowSize"], function)
             elif tIndex == 1:
-                function = lambda channel=self.normalizedSelector.channel: self.parentWidget(
-                ).helper.getEEG().getNormalizedDataAt(channel)
-                self.canvasClass = TimeSignalCanvas
-                self.canvasArgs = (self.eegSettings["sampleRate"], self.eegSettings[
-                                   "windowSize"], function)
-            elif tIndex == 2:
                 function = lambda channel=self.decomposedSelector.channel: self.parentWidget(
-                ).helper.getEEG().getBandsSignalsAt(channel)
+                ).helper.getEEG().getSignalAtBands(channel)
                 self.canvasClass = DescomposedTimeSignalCanvas
-                self.canvasArgs = (self.selectedBands(), self.eegSettings["sampleRate"], self.eegSettings[
-                                   "windowSize"], function)
-            elif tIndex == 3:
+                self.canvasArgs = (self.selectedBands(),
+                                   self.eegSettings["sampleRate"],
+                                   self.eegSettings["windowSize"], function)
+            elif tIndex == 2:
                 self.canvasClass = AverageBandPowerCanvas
                 self.canvasArgs = (defaultBandsNames,
                                    lambda channel=self.averageBPSelector.channel: self.parentWidget(
-                                   ).helper.getEEG().getAverageBandValuesAt(channel))
-            elif tIndex == 4:
+                                   ).helper.getEEG().getAverageBandValues(channel))
+            elif tIndex == 3:
                 self.canvasClass = FeaturesCanvas
                 function = lambda c1=self.SL1Selector.channel, c2=self.SL2Selector.channel: {
                     "Synchronization Likelihood": self.parentWidget().helper.getEEG().synchronizationLikelihood(c1, c2)}
                 self.canvasArgs = (["Synchronization Likelihood"], function)
-            elif tIndex == 5:
+            elif tIndex == 4:
                 self.canvasClass = FeaturesCanvas
                 funcs, names = self.getFeaturesFuncsAndNames()
                 function = lambda: {name: f() for f, name in zip(funcs, names)}
@@ -122,8 +114,8 @@ class PlotWindow(QtWidgets.QDialog):
             else:
                 raise Exception("That tab doesn't exist")
             self.cleanWidgets()
-            self.canvasKargs = {
-                "logFileName": self.loggerFile} if self.loggerFile else {}
+            self.canvasKargs = {"logFileName": self.loggerFile} \
+                                    if self.loggerFile else {}
             self.addCanvas()
 
         self.apButton.clicked.connect(addPlot)
@@ -186,23 +178,23 @@ class PlotWindow(QtWidgets.QDialog):
         helper = self.parentWidget().helper
         if self.hfdCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().getHFDAt(chann))
+                lambda chann=channel: helper.getEEG().HFD(chann))
             featuresNames.append("HFD")
         if self.pfdCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().getPFDAt(chann))
+                lambda chann=channel: helper.getEEG().PFD(chann))
             featuresNames.append("PFD")
         if self.hjorthActivityCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().hjorthActivityAt(chann))
+                lambda chann=channel: helper.getEEG().hjorthActivity(chann))
             featuresNames.append("Hjorth Activity")
         if self.hjorthMobilityCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().hjorthMobilityAt(chann))
+                lambda chann=channel: helper.getEEG().hjorthMobility(chann))
             featuresNames.append("Hjorth Mobility")
         if self.hjorthComplexityCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().hjorthComplexityAt(chann))
+                lambda chann=channel: helper.getEEG().hjorthComplexity(chann))
             featuresNames.append("Hjorth Complexity")
         if self.engagementCB.isChecked():
             featuresFuncs.append(lambda:  helper.getEEG().engagementLevel())
@@ -393,9 +385,7 @@ class FeaturesCanvas(BaseCanvas):
         self.nFeatures = len(featuresNames)
         self.data = {name: [] for name in featuresNames}
         self.time = []
-        self.sum = {name: 0 for name in featuresNames}
         self.legendNames = {name: name for name in featuresNames}
-        self.count = 0
 
     def initLogFile(self):
         self.fieldnames = [self.timeField] + self.featuresNames
@@ -410,12 +400,17 @@ class FeaturesCanvas(BaseCanvas):
 
     def initAnimation(self, start):
         super().initAnimation(start)
+        self.initMeansData()
         if hasattr(self, "plots"):
             for p in self.plots:
                 p.clear()
         self.plots = [self.axes.plot(self.time, self.data[name], name=name, pen=pyqtgraph.mkPen(
             pyqtgraph.intColor(3 * i, self.nFeatures * 3))) for i, name in enumerate(self.featuresNames)]
         self.update_figure(0)
+
+    def initMeansData(self):
+        self.sum = {name: 0 for name in self.featuresNames}
+        self.count = 0
 
     def update_figure(self, delay):
         self.sec += delay

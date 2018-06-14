@@ -35,9 +35,9 @@
       <enum>QTabWidget::Rounded</enum>
      </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
-     <property name="tabBarAutoHide">
+     <property name="tabBarAutoHide" stdset="0">
       <bool>false</bool>
      </property>
      <widget class="QWidget" name="rawTab">
@@ -51,18 +51,6 @@
        <string>Raw</string>
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout"/>
-     </widget>
-     <widget class="QWidget" name="normalizedTab">
-      <property name="accessibleName">
-       <string>Normalized</string>
-      </property>
-      <property name="layoutDirection">
-       <enum>Qt::LeftToRight</enum>
-      </property>
-      <attribute name="title">
-       <string>Normalized</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout"/>
      </widget>
      <widget class="QWidget" name="decomposedTab">
       <property name="accessibleName">
