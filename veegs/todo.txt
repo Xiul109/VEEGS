@@ -1,9 +1,0 @@
-- Pasar de pyQT a QT for python
-- Limpiar código
-- New features
-- Crear repositorio de git
-- Visualización de raw EEG mejorada
-- Cambiar visualización de average band values
-- Añadir visualización de FFT
-- Visualización avanzada
-
