@@ -87,8 +87,8 @@ class PlotWindow(QtWidgets.QDialog):
                 function = lambda channel=self.rawSelector.channel: self.parentWidget(
                 ).helper.getEEG().getChannel(channel)
                 self.canvasClass = TimeSignalCanvas
-                self.canvasArgs = (self.eegSettings["sampleRate"], self.eegSettings[
-                                   "windowSize"], function)
+                self.canvasArgs = (self.eegSettings["sampleRate"],
+                                   self.eegSettings["windowSize"], function)
             elif tIndex == 1:
                 function = lambda channel=self.decomposedSelector.channel: self.parentWidget(
                 ).helper.getEEG().getSignalAtBands(channel)
@@ -104,7 +104,7 @@ class PlotWindow(QtWidgets.QDialog):
             elif tIndex == 3:
                 self.canvasClass = FeaturesCanvas
                 function = lambda c1=self.SL1Selector.channel, c2=self.SL2Selector.channel: {
-                    "Synchronization Likelihood": self.parentWidget().helper.getEEG().synchronizationLikelihood(c1, c2)}
+                    "Synchronization Likelihood": self.parentWidget().helper.eeg.synchronizationLikelihood((c1, c2))}
                 self.canvasArgs = (["Synchronization Likelihood"], function)
             elif tIndex == 4:
                 self.canvasClass = FeaturesCanvas

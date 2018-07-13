@@ -1,24 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# General imports
 from __future__ import unicode_literals
 import sys
 import os
 
+# PyQt imports
 from PyQt5 import QtCore, QtWidgets, QtGui, uic
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QSemaphore
 
+# eeglib imports
 from eeglib.helpers import CSVHelper
 
+# veegs imports
 from veegs.loopTrigger import LoopTrigger
-from veegs.plots import *
+from veegs.plots import PlotWindow
 from veegs.options import OptionsDialog
 
+# Name of the program to display
 progname = "VEEGS"
 
 
 class ApplicationWindow(QtWidgets.QMainWindow):
-
+    """
+    Main window of the application
+    """
     stopSignal = pyqtSignal()
 
     def __init__(self):
@@ -30,7 +37,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         self.eegSettings = {}
 
-        self.__initWindowSizeInput()
+        self.__initEEGInputs()
         self.__initBrowseButton()
         self.__initSetWindowSizeButton(self.setWindowSizeButton)
         self.__initRunInputs()
@@ -83,19 +90,26 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                 self, filter="CSV-Files (*.csv)")
             if filename[0] != "":
                 try:
-                    sr=self.eegSettings["sampleRate"] = int(
+                    sr = self.eegSettings["sampleRate"] = int(
                                                    self.sampleRateInput.text())
-                    self.helper = CSVHelper(filename[0],sampleRate=sr)
+                    ica=self.icaCB.isChecked()
+                    normalize=self.normalizeCB.isChecked()
+                    self.helper = CSVHelper(filename[0], sampleRate=sr,
+                                            ICA=ica,normalize=normalize)
                     self.__setState("WAIT_PLAY")
                     self.feedBackLabel.setText("File oppened properly")
                     self.stopInput.setText(str(len(self.helper) / 128))
+                    windowSize = self.helper.eeg.windowSize
+                    self.eegSettings["windowSize"] = windowSize
+                    self.windowSizeInput.setText(str(windowSize))
                 except IOError:
                     QtWidgets.QMessageBox.warning(self, "Error",
                                                   "Error opening the file",
                                                   QtWidgets.QMessageBox.Ok)
                 except ValueError:
                     QtWidgets.QMessageBox.warning(self, "Error",
-                                                  "Error reading the file. Incorrect format?",
+                                                      "Error reading the \
+                                                      file. Incorrect format?",
                                                   QtWidgets.QMessageBox.Ok)
                 except Exception as e:
                     QtWidgets.QMessageBox.warning(self, "Error",
@@ -106,7 +120,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.browseButton.clicked.connect(openFileDialog)
         self.actionBrowse.triggered.connect(openFileDialog)
 
-    def __initWindowSizeInput(self):
+    def __initEEGInputs(self):
         def checkText(inputLine, text):
             if text == "":
                 enabled = False
@@ -162,14 +176,12 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         sr = self.eegSettings["sampleRate"]
         step = sr * self.simDelay
         self.timePosition = start
-        self.helper.prepareIterator(
-            step, int(start * sr), int(stop * sr))
-        self.iterator = self.helper.__iter__()
+        self.iterator = self.helper[int(start * sr):int(stop * sr):step]
         try:
             self.iterator.__next__()
         except:
-            QtWidgets.QMessageBox.warning(self, "Error",
-                                          "The start and stop points are too close",
+            QtWidgets.QMessageBox.warning(self, "Error", "The start and stop\
+                                                         points are too close",
                                           QtWidgets.QMessageBox.Ok)
 
         for window in self.windowList:
