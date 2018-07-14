@@ -84,14 +84,17 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             self.windowList.append(pw)
             self.functions.append(pw.update)
             pw.show()
-
+        
+        self.prevSaveDir = ""
         self.actionNewPlot.triggered.connect(newPlotWindow)
         self.newPlotButton.clicked.connect(newPlotWindow)
 
     def __initBrowseButton(self):
         def openFileDialog():
-            filename = QtWidgets.QFileDialog.getOpenFileName(
-                self, filter="CSV-Files (*.csv)")
+            filename = QtWidgets.QFileDialog.getOpenFileName(self             ,
+                                               directory = self.prevBrowseDir ,
+                                               filter    = "CSV-Files (*.csv)")
+            print("Archivo:", filename)
             
             if filename[0] != "":
                 try:
@@ -102,7 +105,10 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                     normalize=self.normalizeCB.isChecked()
                     
                     self.helper = CSVHelper(filename[0], sampleRate=sampleRate,
-                                            ICA=ica,normalize=normalize)
+                                            ICA=ica, normalize=normalize)
+                    
+                    self.prevBrowseDir = filename[0]
+                    
                     windowSize = self.helper.eeg.windowSize
                     self.eegSettings["windowSize"] = windowSize
                     
@@ -129,7 +135,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                                                   str(e),
                                                   QtWidgets.QMessageBox.Ok)
 
-
+        self.prevBrowseDir = ""
         self.browseButton.clicked.connect(openFileDialog)
         self.actionBrowse.triggered.connect(openFileDialog)
 

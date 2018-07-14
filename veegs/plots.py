@@ -199,11 +199,15 @@ class PlotWindow(QtWidgets.QDialog):
             self.loggerLabel.setText(messageNoFile)
             
         def openFileDialog():
-            filename = QtWidgets.QFileDialog.getSaveFileName(
-                self, filter="CSV-Files (*.csv)")
+            prevDir = self.parentWidget().prevSaveDir
+            filename = QtWidgets.QFileDialog.getSaveFileName(self             ,
+                                               directory = prevDir            ,
+                                               filter    = "CSV-Files (*.csv)")
             
             if filename[0] != "":
+                self.parentWidget().prevSaveDir = filename[0]
                 self.loggerFile = filename[0]
+                
                 self.loggerLabel.setText(messageFile.format(filename[0]))
                 self.loggerLabel.mouseReleaseEvent = deselectFile
 
@@ -249,26 +253,29 @@ class PlotWindow(QtWidgets.QDialog):
         featuresNames = []
         
         eeg = self.parentWidget().helper.eeg
+        #HFD
         if self.hfdCB.isChecked():
-            featuresFuncs.append(lambda : eeg.HFD(channel))
+            featuresFuncs.append(lambda :              eeg.HFD(channel))
             featuresNames.append("HFD")
-            
+        #PFD    
         if self.pfdCB.isChecked():
-            featuresFuncs.append(lambda : eeg.PFD(channel))
+            featuresFuncs.append(lambda :              eeg.PFD(channel))
             featuresNames.append("PFD")
+        #Hjorth Activity    
         if self.hjorthActivityCB.isChecked():
-            featuresFuncs.append(lambda : eeg.hjorthActivity(channel))
+            featuresFuncs.append(lambda :   eeg.hjorthActivity(channel))
             featuresNames.append("Hjorth Activity")
+        #Hjorth Mobility   
         if self.hjorthMobilityCB.isChecked():
-            featuresFuncs.append(
-                lambda chann=channel: eeg.hjorthMobility(chann))
+            featuresFuncs.append(lambda :   eeg.hjorthMobility(channel))
             featuresNames.append("Hjorth Mobility")
+        #Hjorth Complexity
         if self.hjorthComplexityCB.isChecked():
-            featuresFuncs.append(
-                lambda chann=channel: eeg.hjorthComplexity(chann))
+            featuresFuncs.append(lambda : eeg.hjorthComplexity(channel))
             featuresNames.append("Hjorth Complexity")
+        #Engagement
         if self.engagementCB.isChecked():
-            featuresFuncs.append(lambda:  eeg.engagementLevel())
+            featuresFuncs.append(lambda:          eeg.engagementLevel())
             featuresNames.append("Engagement Level")
 
         return featuresFuncs, featuresNames
@@ -279,7 +286,7 @@ class BaseCanvas():
 
     def __init__(self, func, plot, logFileName=None):
         self.func = func
-        self.axes = plot
+        self.plotter = plot
         if logFileName:
             self.logMode = True
             self.logFileName = logFileName
@@ -323,7 +330,7 @@ class TimeSignalCanvas(BaseCanvas):
         self.arange = arange(0, self.duration, self.duration / self.windowSize)
 
     def makePlot(self, x, y):
-        self.plot = self.axes.plot(x, y, clear=True)
+        self.plot = self.plotter.plot(x, y, clear=True)
 
     def getXY(self):
         y = self.func()
@@ -358,15 +365,15 @@ class DescomposedTimeSignalCanvas(TimeSignalCanvas):
 
         TimeSignalCanvas.__init__(self, *args, **kwargs)
 
-        self.axes.addLegend()
-        self.legend = self.axes.getPlotItem().legend
+        self.plotter.addLegend()
+        self.legend = self.plotter.getPlotItem().legend
 
     def initLogFile(self):
         self.fieldnames = [self.timeField] + self.bands
         BaseCanvas.initLogFile(self, self.fieldnames)
 
     def makeSubplot(self, x, i, band, y):
-        return self.axes.plot(x, y, name=band, pen=pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, 13)))
+        return self.plotter.plot(x, y, name=band, pen=pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, 13)))
 
     def makeSubplots(self, x, ys):
         self.plots = [self.makeSubplot(x, i, band, y) for i, (band, y) in enumerate(
@@ -406,7 +413,7 @@ class AverageBandPowerCanvas(BaseCanvas):
     def __init__(self, bands, *args, **kwargs):
         self.bands = bands
         BaseCanvas.__init__(self, *args, **kwargs)
-        self.xAxe = self.axes.getAxis("bottom")
+        self.xAxe = self.plotter.getAxis("bottom")
         self.x = list(range(len(bands)))
         self.sum = {band: 0 for band in bands}
         self.names = {band: band for band in bands}
@@ -418,7 +425,7 @@ class AverageBandPowerCanvas(BaseCanvas):
 
     def makePlot(self, data, names):
         self.xAxe.setTicks([list(zip(self.x, names))])
-        self.plot = self.axes.plot(
+        self.plot = self.plotter.plot(
             self.x, list(data.values()), symbol="o", clear=True)
 
     def update_figure(self, delay):
@@ -449,7 +456,7 @@ class FeaturesCanvas(BaseCanvas):
 
         BaseCanvas.__init__(self, *args, **kwargs)
 
-        self.legend = self.axes.addLegend()
+        self.legend = self.plotter.addLegend()
 
     def __initAttributes__(self, featuresNames):
         self.featuresNames = featuresNames
@@ -475,7 +482,7 @@ class FeaturesCanvas(BaseCanvas):
         if hasattr(self, "plots"):
             for p in self.plots:
                 p.clear()
-        self.plots = [self.axes.plot(self.time, self.data[name], name=name, pen=pyqtgraph.mkPen(
+        self.plots = [self.plotter.plot(self.time, self.data[name], name=name, pen=pyqtgraph.mkPen(
             pyqtgraph.intColor(3 * i, self.nFeatures * 3))) for i, name in enumerate(self.featuresNames)]
         self.update_figure(0)
 
