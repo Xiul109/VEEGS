@@ -5,6 +5,10 @@ from PyQt5.QtWidgets import QApplication
 
 
 class LoopTrigger(QObject):
+    """
+    This class is used to synchronize the plotting of all of the graphs in a
+    similar way than QTimer, but it waits until all the plots has been painted.
+    """
     sigUpdate=pyqtSignal()
 
     def __init__(self,semaphore, minDelay=0.1):
@@ -18,11 +22,14 @@ class LoopTrigger(QObject):
     def loop(self):
         while self.doLoop:
             t = time.time() + self.minDelay
+            
             self.sigUpdate.emit()
             self.semaphore.acquire(1)
+            
             waitTime = t - time.time()
-            waitTime = waitTime if waitTime >= 0 else 0
-            time.sleep(waitTime)
+            if waitTime > 0:
+                time.sleep(waitTime)
+            
             self.app.processEvents()
 
     @pyqtSlot()

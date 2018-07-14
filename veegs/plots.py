@@ -1,7 +1,10 @@
+"""
+This module defines classes related to plotting graphs
+"""
 from numpy import arange
 import numpy as np
 
-from PyQt5 import QtCore, QtWidgets, QtGui, uic
+from PyQt5 import QtCore, QtWidgets, uic
 
 import pyqtgraph
 from pyqtgraph import PlotWidget
@@ -15,126 +18,190 @@ defaultBandsNames = list(defaultBands.keys())
 
 
 class ChannelSelector(QtWidgets.QGroupBox):
-
+    """
+    This is a widget to select the channel to use when using a feature.
+    """
     def __init__(self, nChannels, parent=None, title="Channel Selector"):
         QtWidgets.QGroupBox.__init__(self, parent)
+        
         self.setTitle(title)
-        self.channel = 0
+        self.channel = 0        #Default Channel
+        
+        #Number of rows of the layout. It's the squared root of the number of
+        #channels
         rows = int(np.ceil(np.sqrt(nChannels)))
+        
         grid = QtWidgets.QGridLayout()
+        
+        #This is a callback that change the channel when another one is
+        #selected
         def setChannel(toggled, chann):
             if toggled:
                 self.channel = chann
+        
+        #This loop go through the rows and adds a radioButton for each channel
         for i in range(rows):
             for j in range(rows):
-                if nChannels > 0:
+                if nChannels > 0:  #Checking if all the channels has ben added
                     nChannels -= 1
+                    
                     channel = i * rows + j
                     rb = QtWidgets.QRadioButton(str(channel))
-                    channel = channel
-                    if channel == 0:
+                    
+                    if channel == 0: #Default channel: 0
                         rb.toggle()
+                        
                     rb.toggled.connect(
-                        lambda toggled, chann=channel: setChannel(toggled, chann))
+                     lambda toggled, chann=channel: setChannel(toggled, chann))
+                    
                     grid.addWidget(rb, i, j)
+                    
         self.setLayout(grid)
 
 
 class PlotWindow(QtWidgets.QDialog):
-
+    """
+    This class allows the user choose what he wants to plot.
+    """
+    
     def __init__(self, parent=None):
         QtWidgets.QDialog.__init__(self, parent)
-        self.eegSettings = parent.eegSettings
+        
         selfdir=os.path.dirname(__file__)
         uic.loadUi(os.path.join(selfdir,"plotWindow.ui"), self)
+        
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         self.setModal(False)
+        
+        self.eegSettings = parent.eegSettings
+        nChannels = parent.helper.nChannels
 
         self.__initApButton()
         self.__initClose()
         self.__initLogger()
+        
+        self.__addSelectors(nChannels)
 
-        nChannels = parent.helper.nChannels
-
+    def __addSelectors(self, nChannels):
+        #Raw data
         self.rawSelector = ChannelSelector(nChannels, self)
         self.tabWidget.widget(0).layout().addWidget(self.rawSelector)
-
+        
+        #Decomposed signal
         self.decomposedSelector = ChannelSelector(nChannels, self)
         self.tabWidget.widget(1).layout().addWidget(self.decomposedSelector)
         self.bandsCBs = [self.deltaCB, self.thetaCB, self.alphaCB, self.betaCB]
-
+        
+        #Average Band Power
         self.averageBPSelector = ChannelSelector(nChannels, self)
         self.tabWidget.widget(2).layout().addWidget(self.averageBPSelector)
 
-        self.SL1Selector = ChannelSelector(
-            nChannels, self, "Channel 1 Selector")
+        #Synchronization Liklihood
+        name = "Channel %d Selector"
+        self.SL1Selector = ChannelSelector(nChannels, self, name%1)
         self.tabWidget.widget(3).layout().addWidget(self.SL1Selector)
-        self.SL2Selector = ChannelSelector(nChannels, self, "Channel 2 Selector")
+        
+        self.SL2Selector = ChannelSelector(nChannels, self, name%2)
         self.tabWidget.widget(3).layout().addWidget(self.SL2Selector)
-
-        self.featuresSelector = ChannelSelector(
-            nChannels, self)
+        
+        #Other Features
+        self.featuresSelector = ChannelSelector(nChannels, self)
         self.tabWidget.widget(4).layout().addWidget(self.featuresSelector)
-
+    
     def __initApButton(self):
         def addPlot():
             tIndex = self.tabWidget.currentIndex()
-            tab = self.tabWidget.currentWidget().accessibleName()
+            
+            tabName = self.tabWidget.currentWidget().accessibleName()
             text = self.nameTB.text()
-            self.setWindowTitle(text if text != "" else tab)
-
+            self.setWindowTitle(text if text != "" else tabName)
+            
+            eeg = self.parentWidget().helper.eeg
+            
+            #Raw data
             if tIndex == 0:
-                function = lambda channel=self.rawSelector.channel: self.parentWidget(
-                ).helper.getEEG().getChannel(channel)
                 self.canvasClass = TimeSignalCanvas
+                
+                channel = self.rawSelector.channel
+                function = lambda : eeg.getChannel(channel)
+                    
                 self.canvasArgs = (self.eegSettings["sampleRate"],
-                                   self.eegSettings["windowSize"], function)
+                                   self.eegSettings["windowSize"],
+                                   function                      )
+                
+            #Decomposed data
             elif tIndex == 1:
-                function = lambda channel=self.decomposedSelector.channel: self.parentWidget(
-                ).helper.getEEG().getSignalAtBands(channel)
                 self.canvasClass = DescomposedTimeSignalCanvas
+                
+                channel = self.decomposedSelector.channel
+                function = lambda : eeg.getSignalAtBands(channel)
+                          
                 self.canvasArgs = (self.selectedBands(),
                                    self.eegSettings["sampleRate"],
-                                   self.eegSettings["windowSize"], function)
+                                   self.eegSettings["windowSize"],
+                                   function                      )
+                
+            #Average Band Power
             elif tIndex == 2:
                 self.canvasClass = AverageBandPowerCanvas
+                
+                channel = self.averageBPSelector.channel
+                function = lambda : eeg.getAverageBandValues(channel)
+                
                 self.canvasArgs = (defaultBandsNames,
-                                   lambda channel=self.averageBPSelector.channel: self.parentWidget(
-                                   ).helper.getEEG().getAverageBandValues(channel))
+                                   function         )
+            
+            #Synchronization Likelihood
             elif tIndex == 3:
                 self.canvasClass = FeaturesCanvas
-                function = lambda c1=self.SL1Selector.channel, c2=self.SL2Selector.channel: {
-                    "Synchronization Likelihood": self.parentWidget().helper.eeg.synchronizationLikelihood((c1, c2))}
-                self.canvasArgs = (["Synchronization Likelihood"], function)
+                
+                c1, c2 = self.SL1Selector.channel, self.SL2Selector.channel
+                name = "Synchronization Likelihood"
+                function=lambda:{name: eeg.synchronizationLikelihood((c1, c2))}
+                
+                self.canvasArgs = ([name]  ,
+                                   function)
+            
+            #Other Features
             elif tIndex == 4:
                 self.canvasClass = FeaturesCanvas
+                
                 funcs, names = self.getFeaturesFuncsAndNames()
                 function = lambda: {name: f() for f, name in zip(funcs, names)}
+                
                 self.canvasArgs = (names, function)
+            
+            #Error
             else:
-                raise Exception("That tab doesn't exist")
+                raise Exception("The selected tab doesn't exist")
+            
+            
             self.cleanWidgets()
             self.canvasKargs = {"logFileName": self.loggerFile} \
-                                    if self.loggerFile else {}
+                                    if self.loggerFile else  {}
             self.addCanvas()
 
         self.apButton.clicked.connect(addPlot)
 
     def __initClose(self):
-        self.finished.connect(
-            lambda: self.parentWidget().deleteWinFromList(self))
+        parent = self.parentWidget()
+        self.finished.connect(lambda: parent.deleteWinFromList(self))
 
     def __initLogger(self):
         self.loggerFile = None
+        
         messageNoFile = "No file selected. Data won't be logged."
         messageFile = 'File selected:"{}" . Click here to deselect it.'
+        
         def deselectFile(event):
             self.loggerFile = None
             self.loggerLabel.mouseReleaseEvent = lambda e: None
             self.loggerLabel.setText(messageNoFile)
+            
         def openFileDialog():
             filename = QtWidgets.QFileDialog.getSaveFileName(
                 self, filter="CSV-Files (*.csv)")
+            
             if filename[0] != "":
                 self.loggerFile = filename[0]
                 self.loggerLabel.setText(messageFile.format(filename[0]))
@@ -147,13 +214,17 @@ class PlotWindow(QtWidgets.QDialog):
             self.layout.takeAt(0).widget().setParent(None)
 
     def addCanvas(self):
-        dc = PlotWidget(self)
+        plotter = PlotWidget(self)
+        
         l = self.layout
-        l.addWidget(dc)
+        l.addWidget(plotter)
+        
         self.canvas = self.canvasClass(
-            *self.canvasArgs, dc, **self.canvasKargs)
+            *self.canvasArgs, plotter, **self.canvasKargs)
+        
         self.destroyed.connect(self.canvas.closeFile)
-        return dc
+        
+        return plotter
 
     def reset(self):
         if hasattr(self, "canvasClass"):
@@ -173,31 +244,31 @@ class PlotWindow(QtWidgets.QDialog):
 
     def getFeaturesFuncsAndNames(self):
         channel = self.featuresSelector.channel
+        
         featuresFuncs = []
         featuresNames = []
-        helper = self.parentWidget().helper
+        
+        eeg = self.parentWidget().helper.eeg
         if self.hfdCB.isChecked():
-            featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().HFD(chann))
+            featuresFuncs.append(lambda : eeg.HFD(channel))
             featuresNames.append("HFD")
+            
         if self.pfdCB.isChecked():
-            featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().PFD(chann))
+            featuresFuncs.append(lambda : eeg.PFD(channel))
             featuresNames.append("PFD")
         if self.hjorthActivityCB.isChecked():
-            featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().hjorthActivity(chann))
+            featuresFuncs.append(lambda : eeg.hjorthActivity(channel))
             featuresNames.append("Hjorth Activity")
         if self.hjorthMobilityCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().hjorthMobility(chann))
+                lambda chann=channel: eeg.hjorthMobility(chann))
             featuresNames.append("Hjorth Mobility")
         if self.hjorthComplexityCB.isChecked():
             featuresFuncs.append(
-                lambda chann=channel: helper.getEEG().hjorthComplexity(chann))
+                lambda chann=channel: eeg.hjorthComplexity(chann))
             featuresNames.append("Hjorth Complexity")
         if self.engagementCB.isChecked():
-            featuresFuncs.append(lambda:  helper.getEEG().engagementLevel())
+            featuresFuncs.append(lambda:  eeg.engagementLevel())
             featuresNames.append("Engagement Level")
 
         return featuresFuncs, featuresNames

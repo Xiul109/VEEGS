@@ -39,7 +39,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         self.__initEEGInputs()
         self.__initBrowseButton()
-        self.__initSetWindowSizeButton(self.setWindowSizeButton)
+        self.__initSetWindowSizeButton()
         self.__initRunInputs()
         self.__initRunButtons()
         self.__initNewPlotAction()
@@ -50,6 +50,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.functions=[]
         self.windowList = []
 
+    #Revisar
     def __setState(self, state):
         def enabledElements(dsB, esB, rB, playEl=True):
             self.dataSourceBox.setEnabled(dsB)
@@ -70,8 +71,11 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     def __initOptionsAction(self):
         def openOptionsDialog():
-            od=OptionsDialog(parent=self, rtDelay=self.rtDelay,simDelay=self.simDelay)
+            od=OptionsDialog(parent=self,
+                             rtDelay=self.rtDelay, 
+                             simDelay=self.simDelay)
             od.show()
+            
         self.actionOptions.triggered.connect(openOptionsDialog)
 
     def __initNewPlotAction(self):
@@ -88,34 +92,43 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         def openFileDialog():
             filename = QtWidgets.QFileDialog.getOpenFileName(
                 self, filter="CSV-Files (*.csv)")
+            
             if filename[0] != "":
                 try:
-                    sr = self.eegSettings["sampleRate"] = int(
+                    sampleRate = self.eegSettings["sampleRate"] = int(
                                                    self.sampleRateInput.text())
+                    
                     ica=self.icaCB.isChecked()
                     normalize=self.normalizeCB.isChecked()
-                    self.helper = CSVHelper(filename[0], sampleRate=sr,
+                    
+                    self.helper = CSVHelper(filename[0], sampleRate=sampleRate,
                                             ICA=ica,normalize=normalize)
-                    self.__setState("WAIT_PLAY")
-                    self.feedBackLabel.setText("File oppened properly")
-                    self.stopInput.setText(str(len(self.helper) / 128))
                     windowSize = self.helper.eeg.windowSize
                     self.eegSettings["windowSize"] = windowSize
+                    
+                    self.feedBackLabel.setText("File oppened properly")
+                    self.stopInput.setText(str(len(self.helper) / sampleRate))
                     self.windowSizeInput.setText(str(windowSize))
+                    
+                    self.__setState("WAIT_PLAY")
+                    
                 except IOError:
                     QtWidgets.QMessageBox.warning(self, "Error",
                                                   "Error opening the file",
                                                   QtWidgets.QMessageBox.Ok)
+                    
                 except ValueError:
                     QtWidgets.QMessageBox.warning(self, "Error",
                                                       "Error reading the \
                                                       file. Incorrect format?",
                                                   QtWidgets.QMessageBox.Ok)
+                    
                 except Exception as e:
                     QtWidgets.QMessageBox.warning(self, "Error",
                                                   "Unexpected Error\n" +
                                                   str(e),
                                                   QtWidgets.QMessageBox.Ok)
+
 
         self.browseButton.clicked.connect(openFileDialog)
         self.actionBrowse.triggered.connect(openFileDialog)
@@ -128,6 +141,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             else:
                 enabled = True
                 styleSheet = ""
+            
             inputLine.setStyleSheet(styleSheet)
             self.setWindowSizeButton.setEnabled(enabled)
 
@@ -139,16 +153,17 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         wsInput.setValidator(QtGui.QIntValidator())
         wsInput.textChanged.connect(lambda text: checkText(wsInput, text))
 
-    def __initSetWindowSizeButton(self, button):
-        def setWindowSize():         
-            self.eegSettings["windowSize"] = int(self.windowSizeInput.text())
+    def __initSetWindowSizeButton(self):
+        def setWindowSize():  
+            windowSize = int(self.windowSizeInput.text())
+            self.eegSettings["windowSize"] = windowSize
             self.feedBackLabel.setText("New settings have been setted")
             self.__setState("WAIT_PLAY")
-            self.helper.prepareEEG(self.eegSettings["windowSize"])
+            self.helper.prepareEEG(windowSize)
             for win in self.windowList:
                 win.reset()
 
-        button.clicked.connect(setWindowSize)
+        self.setWindowSizeButton.clicked.connect(setWindowSize)
 
     def __initRunInputs(self):
         self.startInput.setValidator(QtGui.QDoubleValidator())
@@ -173,10 +188,15 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.loopThread.wait()
 
     def play(self, start, stop):
-        sr = self.eegSettings["sampleRate"]
-        step = sr * self.simDelay
         self.timePosition = start
-        self.iterator = self.helper[int(start * sr):int(stop * sr):step]
+        
+        sampleRate = self.eegSettings["sampleRate"]
+        iterStep = sampleRate * self.simDelay
+        iterStart = int(start * sampleRate)
+        iterStop  = int(stop  * sampleRate)
+        
+        self.iterator = self.helper[iterStart:iterStop:iterStep]
+        
         try:
             self.iterator.__next__()
         except:
@@ -189,15 +209,15 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         self.semaphore=QSemaphore(0)
         loop = LoopTrigger(self.semaphore,minDelay=self.rtDelay)
-        self.loopThread = QThread()
-        loop.moveToThread(self.loopThread)
+        self.loop=loop
 
         loop.sigUpdate.connect(self.__updateFields)
         loop.sigUpdate.connect(self.__playAnimation)
 
         self.stopSignal.connect(loop.stop)
 
-        self.loop=loop
+        self.loopThread = QThread()
+        loop.moveToThread(self.loopThread)
         self.loopThread.started.connect(loop.loop)
         self.loopThread.start()
 
@@ -206,13 +226,15 @@ class ApplicationWindow(QtWidgets.QMainWindow):
     def __playAnimation(self):
         try:
             self.iterator.__next__()
-            for f in self.functions:
+            for function in self.functions:
                 try:
-                    f()
+                    function()
                 except:
-                    self.functions.remove(f)
+                    self.functions.remove(function)
+            
             self.app.processEvents()
             self.semaphore.release(1)
+
         except Exception as e:
             print(e)
             self.stop()
