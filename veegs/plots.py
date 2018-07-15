@@ -95,18 +95,18 @@ class PlotWindow(QtWidgets.QDialog):
         #Average Band Power
         self.averageBPSelector = ChannelSelector(nChannels, self)
         self.tabWidget.widget(2).layout().addWidget(self.averageBPSelector)
-
-        #Synchronization Liklihood
-        name = "Channel %d Selector"
-        self.SL1Selector = ChannelSelector(nChannels, self, name%1)
-        self.tabWidget.widget(3).layout().addWidget(self.SL1Selector)
         
-        self.SL2Selector = ChannelSelector(nChannels, self, name%2)
-        self.tabWidget.widget(3).layout().addWidget(self.SL2Selector)
-        
-        #Other Features
+        #One Channel Features
         self.featuresSelector = ChannelSelector(nChannels, self)
-        self.tabWidget.widget(4).layout().addWidget(self.featuresSelector)
+        self.tabWidget.widget(3).layout().addWidget(self.featuresSelector)
+        
+        #Two Channel Features
+        name = "Channel %d Selector"
+        self.C1Selector = ChannelSelector(nChannels, self, name%1)
+        self.tabWidget.widget(4).layout().addWidget(self.C1Selector)
+        
+        self.C2Selector = ChannelSelector(nChannels, self, name%2)
+        self.tabWidget.widget(4).layout().addWidget(self.C2Selector)
     
     def __initApButton(self):
         def addPlot():
@@ -151,25 +151,25 @@ class PlotWindow(QtWidgets.QDialog):
                 self.canvasArgs = (defaultBandsNames,
                                    function         )
             
-            #Synchronization Likelihood
+            #One Channel Features
             elif tIndex == 3:
                 self.canvasClass = FeaturesCanvas
                 
-                c1, c2 = self.SL1Selector.channel, self.SL2Selector.channel
-                name = "Synchronization Likelihood"
-                function=lambda:{name: eeg.synchronizationLikelihood((c1, c2))}
-                
-                self.canvasArgs = ([name]  ,
-                                   function)
-            
-            #Other Features
-            elif tIndex == 4:
-                self.canvasClass = FeaturesCanvas
-                
-                funcs, names = self.getFeaturesFuncsAndNames()
+                funcs, names = self.getFeatures1CFuncsAndNames()
                 function = lambda: {name: f() for f, name in zip(funcs, names)}
                 
                 self.canvasArgs = (names, function)
+                
+            #Two Channel Features
+            elif tIndex == 4:
+                self.canvasClass = FeaturesCanvas
+                            
+                funcs, names = self.getFeatures2CFuncsAndNames()
+                function = lambda: {name: f() for f, name in zip(funcs, names)}
+                
+                self.canvasArgs = (names, function)
+            
+            
             
             #Error
             else:
@@ -246,7 +246,7 @@ class PlotWindow(QtWidgets.QDialog):
     def selectedBands(self):
         return [x.accessibleName() for x in self.bandsCBs if x.isChecked()]
 
-    def getFeaturesFuncsAndNames(self):
+    def getFeatures1CFuncsAndNames(self):
         channel = self.featuresSelector.channel
         
         featuresFuncs = []
@@ -255,29 +255,59 @@ class PlotWindow(QtWidgets.QDialog):
         eeg = self.parentWidget().helper.eeg
         #HFD
         if self.hfdCB.isChecked():
-            featuresFuncs.append(lambda :              eeg.HFD(channel))
+            featuresFuncs.append(lambda :                 eeg.HFD(channel))
             featuresNames.append("HFD")
         #PFD    
         if self.pfdCB.isChecked():
-            featuresFuncs.append(lambda :              eeg.PFD(channel))
+            featuresFuncs.append(lambda :                 eeg.PFD(channel))
             featuresNames.append("PFD")
         #Hjorth Activity    
         if self.hjorthActivityCB.isChecked():
-            featuresFuncs.append(lambda :   eeg.hjorthActivity(channel))
+            featuresFuncs.append(lambda :      eeg.hjorthActivity(channel))
             featuresNames.append("Hjorth Activity")
         #Hjorth Mobility   
         if self.hjorthMobilityCB.isChecked():
-            featuresFuncs.append(lambda :   eeg.hjorthMobility(channel))
+            featuresFuncs.append(lambda :      eeg.hjorthMobility(channel))
             featuresNames.append("Hjorth Mobility")
         #Hjorth Complexity
         if self.hjorthComplexityCB.isChecked():
-            featuresFuncs.append(lambda : eeg.hjorthComplexity(channel))
+            featuresFuncs.append(lambda :    eeg.hjorthComplexity(channel))
             featuresNames.append("Hjorth Complexity")
+        #Sample Entropy
+        if self.mseCB.isChecked():
+            featuresFuncs.append(lambda :                 eeg.MSE(channel))
+            featuresNames.append("Sample Entropy")
+        #Lempel-Ziv Complexity
+        if self.lzcCB.isChecked():
+            featuresFuncs.append(lambda : eeg.LZC(channel, normalize=True))
+            featuresNames.append("Lempel-Ziv Complexity")
+        #Detrended Fluctuation Analysis
+        if self.dfaCB.isChecked():
+            featuresFuncs.append(lambda :                 eeg.DFA(channel))
+            featuresNames.append("Detrended Fluctuation Analysis")
         #Engagement
         if self.engagementCB.isChecked():
-            featuresFuncs.append(lambda:          eeg.engagementLevel())
+            featuresFuncs.append(lambda:             eeg.engagementLevel())
             featuresNames.append("Engagement Level")
 
+        return featuresFuncs, featuresNames
+    
+    def getFeatures2CFuncsAndNames(self):
+        c1, c2 = self.C1Selector.channel, self.C2Selector.channel
+        
+        featuresFuncs = []
+        featuresNames = []
+        
+        eeg = self.parentWidget().helper.eeg
+        #Synchronization Likelihood
+        if self.slCB.isChecked():
+            featuresFuncs.append(lambda:eeg.synchronizationLikelihood((c1,c2)))
+            featuresNames.append("Synchronization Likelihood")
+        #Cross Correlation Coeficient
+        if self.cccCB.isChecked():
+            featuresFuncs.append(lambda :                     eeg.CCC((c1,c2)))
+            featuresNames.append("CCC")
+        
         return featuresFuncs, featuresNames
 
 

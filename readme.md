@@ -12,6 +12,6 @@ In Archlinux it can be installed through the next command:
 `$ pacman -S qt5-base`
 
 
-One Qt5 is installed, open a terminal in the root directory and write
+Once Qt5 is installed, open a terminal in the root directory and write
 
 `$ pip install .`

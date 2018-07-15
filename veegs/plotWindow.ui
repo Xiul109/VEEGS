@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>717</width>
-    <height>457</height>
+    <width>775</width>
+    <height>500</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -35,9 +35,9 @@
       <enum>QTabWidget::Rounded</enum>
      </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>3</number>
      </property>
-     <property name="tabBarAutoHide" stdset="0">
+     <property name="tabBarAutoHide">
       <bool>false</bool>
      </property>
      <widget class="QWidget" name="rawTab">
@@ -147,27 +147,15 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3"/>
      </widget>
-     <widget class="QWidget" name="slTab">
+     <widget class="QWidget" name="oneChannelTab">
       <property name="accessibleName">
-       <string>Synchronization Likelihood</string>
+       <string>One Channel Features</string>
       </property>
       <property name="layoutDirection">
        <enum>Qt::LeftToRight</enum>
       </property>
       <attribute name="title">
-       <string>Sychronization Likelihood</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_5"/>
-     </widget>
-     <widget class="QWidget" name="featuresTab">
-      <property name="accessibleName">
-       <string>Other Features</string>
-      </property>
-      <property name="layoutDirection">
-       <enum>Qt::LeftToRight</enum>
-      </property>
-      <attribute name="title">
-       <string>Other Features</string>
+       <string>1 Channel Features</string>
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout_3">
        <item>
@@ -221,12 +209,69 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="mseCB">
+            <property name="text">
+             <string>Sample Entropy</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="lzcCB">
+            <property name="text">
+             <string>Lempel-Ziv Complexity</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="dfaCB">
+            <property name="text">
+             <string>Detrended Fluctuation Analysis</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QCheckBox" name="engagementCB">
             <property name="toolTip">
              <string>This feature doesn't use an specific channel</string>
             </property>
             <property name="text">
              <string>Engagement Level</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="twoChannelsTab">
+      <property name="accessibleName">
+       <string>Two Channels Features</string>
+      </property>
+      <property name="layoutDirection">
+       <enum>Qt::LeftToRight</enum>
+      </property>
+      <attribute name="title">
+       <string>2 Channels Features</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_5">
+       <item>
+        <widget class="QGroupBox" name="groupBox_4">
+         <property name="title">
+          <string>GroupBox</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout">
+          <item>
+           <widget class="QCheckBox" name="slCB">
+            <property name="text">
+             <string>Synchronization Likelihood</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="cccCB">
+            <property name="text">
+             <string>Cross Correlation Coeficient</string>
             </property>
            </widget>
           </item>
