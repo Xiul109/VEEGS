@@ -317,6 +317,7 @@ class BaseCanvas():
     def __init__(self, func, plot, logFileName=None):
         self.func = func
         self.plotter = plot
+        
         if logFileName:
             self.logMode = True
             self.logFileName = logFileName
@@ -364,27 +365,33 @@ class TimeSignalCanvas(BaseCanvas):
 
     def getXY(self):
         y = self.func()
-        s1 = self.sec
-        x = self.arange + s1
+        x = self.arange + self.sec
+        
         return x, y
 
     def write(self, fieldnames, data):
         self.writer.writerows(
-            [{field: value[i] for field, value in zip(fieldnames, data)} for i in range(len(data[0]))])
+            [{field: value[i] for field, value in zip(fieldnames, data)} 
+                              for i in range(len(data[0]))             ]
+            )
 
     def initAnimation(self, start):
         super().initAnimation(start)
+        
         x, y = self.getXY()
         self.makePlot(x, y)
+        
         if self.logMode:
             self.write(self.fieldnames, [x, y])
 
     def update_figure(self, delay):
         super().update_figure(delay)
-        newDataStart = -int(self.sampleRate * (delay))
+        
         x, y = self.getXY()
         self.makePlot(x, y)
+        
         if self.logMode:
+            newDataStart = -int(self.sampleRate * (delay))
             self.write(self.fieldnames, [x[newDataStart:], y[newDataStart:]])
 
 
@@ -400,35 +407,48 @@ class DescomposedTimeSignalCanvas(TimeSignalCanvas):
 
     def initLogFile(self):
         self.fieldnames = [self.timeField] + self.bands
+        
         BaseCanvas.initLogFile(self, self.fieldnames)
 
     def makeSubplot(self, x, i, band, y):
-        return self.plotter.plot(x, y, name=band, pen=pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, 13)))
+        pen = pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, 13))
+        return self.plotter.plot(x,      y, 
+                                 name=band, 
+                                 pen=pen  )
 
     def makeSubplots(self, x, ys):
-        self.plots = [self.makeSubplot(x, i, band, y) for i, (band, y) in enumerate(
-            ys.items())]
+        self.plots = [self.makeSubplot(x, i, band, y) for i, (band, y) 
+                                                      in enumerate(ys.items())]
 
     def getXY(self):
         x, ys = super().getXY()
-        return x, {band: values for band, values in ys.items() if band in self.bands}
+        
+        return x, {band: values for band, values 
+                                in ys.items() 
+                                if band in self.bands}
 
     def initAnimation(self, start):
         BaseCanvas.initAnimation(self, start)
+        
         if hasattr(self, "plots"):
             self.cleanSubplots()
+        
         x, ys = self.getXY()
         self.makeSubplots(x, ys)
+        
         if self.logMode:
             self.write(self.fieldnames, [x] + list(ys.values()))
 
     def update_figure(self, delay):
         BaseCanvas.update_figure(self, delay)
-        newDataStart = -int(self.sampleRate * (delay))
+        
         self.cleanSubplots()
+        
         x, ys = self.getXY()
         self.makeSubplots(x, ys)
+        
         if self.logMode:
+            newDataStart = -int(self.sampleRate * (delay))
             self.write(self.fieldnames, [v[newDataStart:]
                                          for v in [x] + list(ys.values())])
 
@@ -441,12 +461,16 @@ class DescomposedTimeSignalCanvas(TimeSignalCanvas):
 class AverageBandPowerCanvas(BaseCanvas):
 
     def __init__(self, bands, *args, **kwargs):
-        self.bands = bands
         BaseCanvas.__init__(self, *args, **kwargs)
+        
         self.xAxe = self.plotter.getAxis("bottom")
+        
+        self.bands = bands
         self.x = list(range(len(bands)))
+        
         self.sum = {band: 0 for band in bands}
         self.names = {band: band for band in bands}
+        
         self.count = 0
 
     def initLogFile(self):
@@ -455,18 +479,23 @@ class AverageBandPowerCanvas(BaseCanvas):
 
     def makePlot(self, data, names):
         self.xAxe.setTicks([list(zip(self.x, names))])
-        self.plot = self.plotter.plot(
-            self.x, list(data.values()), symbol="o", clear=True)
+        
+        self.plot = self.plotter.plot(self.x, list(data.values()), 
+                                      symbol="o", clear=True     )
 
     def update_figure(self, delay):
         super().update_figure(delay)
+        
         data = self.func()
         self.count += 1
+        
         for band in data:
             self.sum[band] += data[band]
             self.names[band] = band + \
-                ": {:.4f}".format(self.sum[band] / self.count)
+                              ": {:.4f}".format(self.sum[band] / self.count)
+        
         self.makePlot(data, list(self.names.values()))
+        
         if self.logMode:
             self.write([self.sec] + list(data.values()))
 
@@ -491,8 +520,10 @@ class FeaturesCanvas(BaseCanvas):
     def __initAttributes__(self, featuresNames):
         self.featuresNames = featuresNames
         self.nFeatures = len(featuresNames)
+        
         self.data = {name: [] for name in featuresNames}
         self.time = []
+        
         self.legendNames = {name: name for name in featuresNames}
 
     def initLogFile(self):
@@ -501,19 +532,30 @@ class FeaturesCanvas(BaseCanvas):
 
     def makePlots(self):
         for plot, (fName, data) in zip(self.plots, self.data.items()):
+            
             plot.setData(self.time, data)
+            
             for sample, label in self.legend.items:
                 if sample.item == plot:
                     label.setText(self.legendNames[fName])
 
     def initAnimation(self, start):
         super().initAnimation(start)
+        
         self.initMeansData()
+        
         if hasattr(self, "plots"):
             for p in self.plots:
                 p.clear()
-        self.plots = [self.plotter.plot(self.time, self.data[name], name=name, pen=pyqtgraph.mkPen(
-            pyqtgraph.intColor(3 * i, self.nFeatures * 3))) for i, name in enumerate(self.featuresNames)]
+                
+        self.plots = []
+        
+        for i, name in enumerate(self.featuresNames):
+            pen=pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, self.nFeatures * 3))
+            self.plots.append(self.plotter.plot(self.time, self.data[name], 
+                                                name=name, pen=pen        )
+                             )
+        
         self.update_figure(0)
 
     def initMeansData(self):
@@ -522,16 +564,21 @@ class FeaturesCanvas(BaseCanvas):
 
     def update_figure(self, delay):
         self.sec += delay
-        self.count += 1
         currentTime = self.sec
         self.time.append(currentTime)
+        
+        self.count += 1
+        
         data = self.func()
+        
         for fName, fValue in data.items():
             self.data[fName].append(fValue)
             self.sum[fName] += fValue
             self.legendNames[fName] = fName + \
-                ": {:.4f}".format(self.sum[fName] / self.count)
+                                ": {:.4f}".format(self.sum[fName] / self.count)
+        
         self.makePlots()
+        
         if self.logMode:
             data[self.timeField] = currentTime
             self.write(data)
