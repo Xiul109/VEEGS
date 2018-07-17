@@ -143,7 +143,7 @@ class PlotWindow(QtWidgets.QDialog):
                 
             #Average Band Power
             elif tIndex == 2:
-                self.canvasClass = AverageBandPowerCanvas
+                self.canvasClass = FeaturesCanvas
                 
                 channel = self.averageBPSelector.channel
                 function = lambda : eeg.getAverageBandValues(channel)
