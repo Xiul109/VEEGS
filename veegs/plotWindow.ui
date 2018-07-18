@@ -54,7 +54,7 @@
      </widget>
      <widget class="QWidget" name="decomposedTab">
       <property name="accessibleName">
-       <string>Descomposed</string>
+       <string>Decomposed</string>
       </property>
       <property name="layoutDirection">
        <enum>Qt::LeftToRight</enum>
@@ -147,6 +147,12 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_3"/>
      </widget>
+     <widget class="QWidget" name="fftTab">
+      <attribute name="title">
+       <string>FFT</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_6"/>
+     </widget>
      <widget class="QWidget" name="oneChannelTab">
       <property name="accessibleName">
        <string>One Channel Features</string>
@@ -155,7 +161,7 @@
        <enum>Qt::LeftToRight</enum>
       </property>
       <attribute name="title">
-       <string>1 Channel Features</string>
+       <string>One Channel Features</string>
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout_3">
        <item>
@@ -252,7 +258,7 @@
        <enum>Qt::LeftToRight</enum>
       </property>
       <attribute name="title">
-       <string>2 Channels Features</string>
+       <string>Two Channels Features</string>
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_5">
        <item>
@@ -260,18 +266,18 @@
          <property name="title">
           <string>GroupBox</string>
          </property>
-         <layout class="QVBoxLayout" name="verticalLayout">
-          <item>
-           <widget class="QCheckBox" name="slCB">
-            <property name="text">
-             <string>Synchronization Likelihood</string>
-            </property>
-           </widget>
-          </item>
+         <layout class="QHBoxLayout" name="horizontalLayout_5">
           <item>
            <widget class="QCheckBox" name="cccCB">
             <property name="text">
              <string>Cross Correlation Coeficient</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="slCB">
+            <property name="text">
+             <string>Synchronization Likelihood</string>
             </property>
            </widget>
           </item>

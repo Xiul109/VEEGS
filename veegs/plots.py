@@ -59,6 +59,15 @@ class ChannelSelector(QtWidgets.QGroupBox):
         self.setLayout(grid)
 
 
+#Tabs names
+rawTab   = "&Raw"
+decomTab = "&Decomposed"
+bandsTab = "&Average Band Power"
+fftTab   = "&FFT"
+c1Tab    = "&One Channel Features"
+c2Tab    = "&Two Channels Features"
+
+
 class PlotWindow(QtWidgets.QDialog):
     """
     This class allows the user choose what he wants to plot.
@@ -85,41 +94,44 @@ class PlotWindow(QtWidgets.QDialog):
     def __addSelectors(self, nChannels):
         #Raw data
         self.rawSelector = ChannelSelector(nChannels, self)
-        self.tabWidget.widget(0).layout().addWidget(self.rawSelector)
+        self.rawTab.layout().addWidget(self.rawSelector)
         
         #Decomposed signal
         self.decomposedSelector = ChannelSelector(nChannels, self)
-        self.tabWidget.widget(1).layout().addWidget(self.decomposedSelector)
+        self.decomposedTab.layout().addWidget(self.decomposedSelector)
         self.bandsCBs = [self.deltaCB, self.thetaCB, self.alphaCB, self.betaCB]
         
         #Average Band Power
         self.averageBPSelector = ChannelSelector(nChannels, self)
-        self.tabWidget.widget(2).layout().addWidget(self.averageBPSelector)
+        self.averagePowerBandTab.layout().addWidget(self.averageBPSelector)
+        
+        # FFT
+        self.fftSelector = ChannelSelector(nChannels,self)
+        self.fftTab.layout().addWidget(self.fftSelector)
         
         #One Channel Features
         self.featuresSelector = ChannelSelector(nChannels, self)
-        self.tabWidget.widget(3).layout().addWidget(self.featuresSelector)
+        self.oneChannelTab.layout().addWidget(self.featuresSelector)
         
         #Two Channel Features
         name = "Channel %d Selector"
         self.C1Selector = ChannelSelector(nChannels, self, name%1)
-        self.tabWidget.widget(4).layout().addWidget(self.C1Selector)
+        self.twoChannelsTab.layout().addWidget(self.C1Selector)
         
         self.C2Selector = ChannelSelector(nChannels, self, name%2)
-        self.tabWidget.widget(4).layout().addWidget(self.C2Selector)
+        self.twoChannelsTab.layout().addWidget(self.C2Selector)
     
     def __initApButton(self):
         def addPlot():
-            tIndex = self.tabWidget.currentIndex()
+            tabName = self.tabWidget.tabText(self.tabWidget.currentIndex())
             
-            tabName = self.tabWidget.currentWidget().accessibleName()
             text = self.nameTB.text()
-            self.setWindowTitle(text if text != "" else tabName)
+            self.setWindowTitle(text if text != "" else tabName[1:])
             
             eeg = self.parentWidget().helper.eeg
             
             #Raw data
-            if tIndex == 0:
+            if tabName == rawTab:
                 self.canvasClass = TimeSignalCanvas
                 
                 channel = self.rawSelector.channel
@@ -130,7 +142,7 @@ class PlotWindow(QtWidgets.QDialog):
                                    function                      )
                 
             #Decomposed data
-            elif tIndex == 1:
+            elif tabName == decomTab:
                 self.canvasClass = DescomposedTimeSignalCanvas
                 
                 channel = self.decomposedSelector.channel
@@ -142,7 +154,7 @@ class PlotWindow(QtWidgets.QDialog):
                                    function                      )
                 
             #Average Band Power
-            elif tIndex == 2:
+            elif tabName == bandsTab:
                 self.canvasClass = FeaturesCanvas
                 
                 channel = self.averageBPSelector.channel
@@ -151,8 +163,19 @@ class PlotWindow(QtWidgets.QDialog):
                 self.canvasArgs = (defaultBandsNames,
                                    function         )
             
+            #FFT
+            elif tabName == fftTab:
+                self.canvasClass = FFTCanvas
+                
+                channel = self.fftSelector.channel
+                function = lambda : eeg.getMagnitudes(channel)
+                
+                self.canvasArgs = (self.eegSettings["sampleRate"],
+                                   self.eegSettings["windowSize"],
+                                   function                      )
+            
             #One Channel Features
-            elif tIndex == 3:
+            elif tabName == c1Tab:
                 self.canvasClass = FeaturesCanvas
                 
                 funcs, names = self.getFeatures1CFuncsAndNames()
@@ -161,14 +184,13 @@ class PlotWindow(QtWidgets.QDialog):
                 self.canvasArgs = (names, function)
                 
             #Two Channel Features
-            elif tIndex == 4:
+            elif tabName == c2Tab:
                 self.canvasClass = FeaturesCanvas
                             
                 funcs, names = self.getFeatures2CFuncsAndNames()
                 function = lambda: {name: f() for f, name in zip(funcs, names)}
                 
                 self.canvasArgs = (names, function)
-            
             
             
             #Error
@@ -563,7 +585,7 @@ class FeaturesCanvas(BaseCanvas):
         self.count = 0
 
     def update_figure(self, delay):
-        self.sec += delay
+        super().update_figure(delay)
         currentTime = self.sec
         self.time.append(currentTime)
         
@@ -585,3 +607,33 @@ class FeaturesCanvas(BaseCanvas):
 
     def write(self, data):
         self.writer.writerow(data)
+
+
+class FFTCanvas(BaseCanvas):
+    def __init__(self, sampleRate, windowSize, *args, **kargs):
+        self.sampleRate = sampleRate
+        self.windowSize = windowSize
+        
+        self.x = (np.arange(windowSize//2)+1)*sampleRate/windowSize
+        
+        super().__init__(*args, **kargs)
+    
+    def initAnimation(self, start):
+        super().initAnimation(start)
+        self.update_figure(0)
+    
+    def update_figure(self, delay):
+        super().update_figure(delay)
+        fft = self.func()[1:self.windowSize//2+1]
+        self.plotter.plot(self.x,fft,clear=True)
+        
+        if self.logMode:
+            wData = {x:y for x,y in zip(self.x, fft)}
+            wData[self.timeField] = self.sec
+            self.writer.writerow(wData)
+    
+    def initLogFile(self):
+        self.fieldnames = [self.timeField]+list(self.x)
+        super().initLogFile(self.fieldnames)
+        
+        
