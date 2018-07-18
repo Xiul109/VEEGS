@@ -21,7 +21,8 @@ class ChannelSelector(QtWidgets.QGroupBox):
     """
     This is a widget to select the channel to use when using a feature.
     """
-    def __init__(self, nChannels, parent=None, title="Channel Selector"):
+    def __init__(self, nChannels, parent=None, names = None,
+                                   title="Channel Selector"):
         QtWidgets.QGroupBox.__init__(self, parent)
         
         self.setTitle(title)
@@ -46,7 +47,12 @@ class ChannelSelector(QtWidgets.QGroupBox):
                     nChannels -= 1
                     
                     channel = i * rows + j
-                    rb = QtWidgets.QRadioButton(str(channel))
+                    if names:
+                        name = names[channel]
+                    else:
+                        name=str(channel)
+                        
+                    rb = QtWidgets.QRadioButton(name)
                     
                     if channel == 0: #Default channel: 0
                         rb.toggle()
@@ -83,42 +89,43 @@ class PlotWindow(QtWidgets.QDialog):
         self.setModal(False)
         
         self.eegSettings = parent.eegSettings
-        nChannels = parent.helper.nChannels
 
         self.__initApButton()
         self.__initClose()
         self.__initLogger()
         
-        self.__addSelectors(nChannels)
+        nChannels = parent.helper.nChannels
+        names     = parent.helper.names
+        self.__addSelectors(nChannels, names)
 
-    def __addSelectors(self, nChannels):
+    def __addSelectors(self, nChannels, names = None):
         #Raw data
-        self.rawSelector = ChannelSelector(nChannels, self)
+        self.rawSelector = ChannelSelector(nChannels, self, names)
         self.rawTab.layout().addWidget(self.rawSelector)
         
         #Decomposed signal
-        self.decomposedSelector = ChannelSelector(nChannels, self)
+        self.decomposedSelector = ChannelSelector(nChannels, self, names)
         self.decomposedTab.layout().addWidget(self.decomposedSelector)
         self.bandsCBs = [self.deltaCB, self.thetaCB, self.alphaCB, self.betaCB]
         
         #Average Band Power
-        self.averageBPSelector = ChannelSelector(nChannels, self)
+        self.averageBPSelector = ChannelSelector(nChannels, self, names)
         self.averagePowerBandTab.layout().addWidget(self.averageBPSelector)
         
         # FFT
-        self.fftSelector = ChannelSelector(nChannels,self)
+        self.fftSelector = ChannelSelector(nChannels,self, names)
         self.fftTab.layout().addWidget(self.fftSelector)
         
         #One Channel Features
-        self.featuresSelector = ChannelSelector(nChannels, self)
+        self.featuresSelector = ChannelSelector(nChannels, self, names)
         self.oneChannelTab.layout().addWidget(self.featuresSelector)
         
         #Two Channel Features
         name = "Channel %d Selector"
-        self.C1Selector = ChannelSelector(nChannels, self, name%1)
+        self.C1Selector = ChannelSelector(nChannels, self, names, name%1)
         self.twoChannelsTab.layout().addWidget(self.C1Selector)
         
-        self.C2Selector = ChannelSelector(nChannels, self, name%2)
+        self.C2Selector = ChannelSelector(nChannels, self, names, name%2)
         self.twoChannelsTab.layout().addWidget(self.C2Selector)
     
     def __initApButton(self):
