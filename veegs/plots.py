@@ -1,18 +1,19 @@
 """
 This module defines classes related to plotting graphs
 """
-from numpy import arange
+
 import numpy as np
 
 from PyQt5 import QtCore, QtWidgets, uic
 
-import pyqtgraph
-from pyqtgraph import PlotWidget
+import pyqtgraph as pg
 
-import csv
 import os
 
+from itertools import combinations
+
 from eeglib.eeg import defaultBands
+import eeglib.wrapper as wrap
 
 defaultBandsNames = list(defaultBands.keys())
 
@@ -26,7 +27,7 @@ class ChannelSelector(QtWidgets.QGroupBox):
         QtWidgets.QGroupBox.__init__(self, parent)
         
         self.setTitle(title)
-        self.channel = 0        #Default Channel
+        self.channel = set()        #Default Channel
         
         #Number of rows of the layout. It's the squared root of the number of
         #channels
@@ -38,9 +39,11 @@ class ChannelSelector(QtWidgets.QGroupBox):
         #selected
         def setChannel(toggled, chann):
             if toggled:
-                self.channel = chann
+                self.channel.add(chann)
+            else:
+                self.channel.remove(chann)
         
-        #This loop go through the rows and adds a radioButton for each channel
+        #This loop go through the rows and adds a checkBox for each channel
         for i in range(rows):
             for j in range(rows):
                 if nChannels > 0:  #Checking if all the channels has ben added
@@ -52,10 +55,7 @@ class ChannelSelector(QtWidgets.QGroupBox):
                     else:
                         name=str(channel)
                         
-                    rb = QtWidgets.QRadioButton(name)
-                    
-                    if channel == 0: #Default channel: 0
-                        rb.toggle()
+                    rb = QtWidgets.QCheckBox(name)
                         
                     rb.toggled.connect(
                      lambda toggled, chann=channel: setChannel(toggled, chann))
@@ -63,15 +63,18 @@ class ChannelSelector(QtWidgets.QGroupBox):
                     grid.addWidget(rb, i, j)
                     
         self.setLayout(grid)
+        
+    def getChannel(self):
+        return list(self.channel)
 
 
 #Tabs names
 rawTab   = "&Raw"
-decomTab = "&Decomposed"
 bandsTab = "&Average Band Power"
 fftTab   = "&FFT"
 c1Tab    = "&One Channel Features"
 c2Tab    = "&Two Channels Features"
+c0Tab    = "&Channeless Features"
 
 
 class PlotWindow(QtWidgets.QDialog):
@@ -92,7 +95,6 @@ class PlotWindow(QtWidgets.QDialog):
 
         self.__initApButton()
         self.__initClose()
-        self.__initLogger()
         
         nChannels = parent.helper.nChannels
         names     = parent.helper.names
@@ -102,11 +104,6 @@ class PlotWindow(QtWidgets.QDialog):
         #Raw data
         self.rawSelector = ChannelSelector(nChannels, self, names)
         self.rawTab.layout().addWidget(self.rawSelector)
-        
-        #Decomposed signal
-        self.decomposedSelector = ChannelSelector(nChannels, self, names)
-        self.decomposedTab.layout().addWidget(self.decomposedSelector)
-        self.bandsCBs = [self.deltaCB, self.thetaCB, self.alphaCB, self.betaCB]
         
         #Average Band Power
         self.averageBPSelector = ChannelSelector(nChannels, self, names)
@@ -121,11 +118,7 @@ class PlotWindow(QtWidgets.QDialog):
         self.oneChannelTab.layout().addWidget(self.featuresSelector)
         
         #Two Channel Features
-        name = "Channel %d Selector"
-        self.C1Selector = ChannelSelector(nChannels, self, names, name%1)
-        self.twoChannelsTab.layout().addWidget(self.C1Selector)
-        
-        self.C2Selector = ChannelSelector(nChannels, self, names, name%2)
+        self.C2Selector = ChannelSelector(nChannels, self, names)
         self.twoChannelsTab.layout().addWidget(self.C2Selector)
     
     def __initApButton(self):
@@ -135,80 +128,87 @@ class PlotWindow(QtWidgets.QDialog):
             text = self.nameTB.text()
             self.setWindowTitle(text if text != "" else tabName[1:])
             
-            eeg = self.parentWidget().helper.eeg
+            channelError = featureError = False
             
             #Raw data
             if tabName == rawTab:
-                self.canvasClass = TimeSignalCanvas
+                self.canvasClass = TimeSignalCanvas;
                 
-                channel = self.rawSelector.channel
-                function = lambda : eeg.getChannel(channel)
+                channel = self.rawSelector.getChannel()
                     
-                self.canvasArgs = (self.eegSettings["sampleRate"],
-                                   self.eegSettings["windowSize"],
-                                   function                      )
+                self.canvasArgs = (channel,)
                 
-            #Decomposed data
-            elif tabName == decomTab:
-                self.canvasClass = DescomposedTimeSignalCanvas
-                
-                channel = self.decomposedSelector.channel
-                function = lambda : eeg.getSignalAtBands(channel)
-                          
-                self.canvasArgs = (self.selectedBands(),
-                                   self.eegSettings["sampleRate"],
-                                   self.eegSettings["windowSize"],
-                                   function                      )
+                channelError = len(channel)==0
                 
             #Average Band Power
             elif tabName == bandsTab:
-                self.canvasClass = FeaturesCanvas
+                self.canvasClass = BandValuesCanvas
                 
-                channel = self.averageBPSelector.channel
-                function = lambda : eeg.getAverageBandValues(channel)
+                channel = self.averageBPSelector.getChannel()
                 
-                self.canvasArgs = (defaultBandsNames,
-                                   function         )
+                self.canvasArgs = (channel,)
+                
+                channelError = len(channel)==0
             
             #FFT
             elif tabName == fftTab:
                 self.canvasClass = FFTCanvas
                 
-                channel = self.fftSelector.channel
-                function = lambda : eeg.getMagnitudes(channel)
+                channel  = self.fftSelector.getChannel()
                 
-                self.canvasArgs = (self.eegSettings["sampleRate"],
-                                   self.eegSettings["windowSize"],
-                                   function                      )
+                self.canvasArgs = (channel,)
+                
+                channelError = len(channel)==0
             
             #One Channel Features
             elif tabName == c1Tab:
                 self.canvasClass = FeaturesCanvas
                 
-                funcs, names = self.getFeatures1CFuncsAndNames()
-                function = lambda: {name: f() for f, name in zip(funcs, names)}
+                channel  = self.featuresSelector.getChannel()
+                funcs, names = self._getFeatures1CFuncsAndNames()
                 
-                self.canvasArgs = (names, function)
+                self.canvasArgs = (funcs, names, channel)
+                
+                channelError = len(channel) == 0
+                featureError = len(names) == 0
                 
             #Two Channel Features
             elif tabName == c2Tab:
-                self.canvasClass = FeaturesCanvas
-                            
-                funcs, names = self.getFeatures2CFuncsAndNames()
-                function = lambda: {name: f() for f, name in zip(funcs, names)}
+                self.canvasClass = TwoChannelsCanvas
                 
-                self.canvasArgs = (names, function)
+                channel  = self.C2Selector.getChannel()
+                funcs, names = self._getFeatures2CFuncsAndNames()
+                
+                self.canvasArgs = (funcs, names, channel)
+                
+                channelError = len(channel) < 2
+                featureError = len(names) == 0
             
+            #Channeless Features
+            elif tabName == c0Tab:
+                self.canvasClass = ChannelessCanvas
+                
+                funcs, names = self._getFeatures0CFuncsAndNames()
+                
+                self.canvasArgs = (funcs, names, None)
+                
+                featureError = len(names) == 0          
             
             #Error
             else:
                 raise Exception("The selected tab doesn't exist")
             
-            
-            self.cleanWidgets()
-            self.canvasKargs = {"logFileName": self.loggerFile} \
-                                    if self.loggerFile else  {}
-            self.addCanvas()
+            if not channelError and not featureError:
+                self.cleanWidgets()
+                self.addCanvas()
+            elif channelError:
+                QtWidgets.QMessageBox.warning(self, "Error",
+                                           "You have to select more channels.",
+                                           QtWidgets.QMessageBox.Ok)
+            elif featureError:
+                QtWidgets.QMessageBox.warning(self, "Error",
+                                 "You have to select at least one(1) feature.",
+                                 QtWidgets.QMessageBox.Ok)
 
         self.apButton.clicked.connect(addPlot)
 
@@ -216,51 +216,20 @@ class PlotWindow(QtWidgets.QDialog):
         parent = self.parentWidget()
         self.finished.connect(lambda: parent.deleteWinFromList(self))
 
-    def __initLogger(self):
-        self.loggerFile = None
-        
-        messageNoFile = "No file selected. Data won't be logged."
-        messageFile = 'File selected:"{}" . Click here to deselect it.'
-        
-        def deselectFile(event):
-            self.loggerFile = None
-            self.loggerLabel.mouseReleaseEvent = lambda e: None
-            self.loggerLabel.setText(messageNoFile)
-            
-        def openFileDialog():
-            prevDir = self.parentWidget().prevSaveDir
-            filename = QtWidgets.QFileDialog.getSaveFileName(self             ,
-                                               directory = prevDir            ,
-                                               filter    = "CSV-Files (*.csv)")
-            
-            if filename[0] != "":
-                self.parentWidget().prevSaveDir = filename[0]
-                self.loggerFile = filename[0]
-                
-                self.loggerLabel.setText(messageFile.format(filename[0]))
-                self.loggerLabel.mouseReleaseEvent = deselectFile
-
-        self.loggerButton.clicked.connect(openFileDialog)
-
     def cleanWidgets(self):
         for _ in range(self.layout.count()):
             self.layout.takeAt(0).widget().setParent(None)
 
     def addCanvas(self):
-        plotter = PlotWidget(self)
+        graphLayout = pg.GraphicsLayoutWidget()
+        self.layout.addWidget(graphLayout)
         
-        l = self.layout
-        l.addWidget(plotter)
-        
-        self.canvas = self.canvasClass(
-            *self.canvasArgs, plotter, **self.canvasKargs)
-        
-        self.destroyed.connect(self.canvas.closeFile)
-        
-        return plotter
+        self.canvas = self.canvasClass(*self.canvasArgs       , 
+                                       self.parent().helper   ,
+                                       graphLayout            )
 
     def reset(self):
-        if hasattr(self, "canvasClass"):
+        if hasattr(self, "canvas"):
             self.cleanWidgets()
             self.addCanvas()
 
@@ -275,66 +244,71 @@ class PlotWindow(QtWidgets.QDialog):
     def selectedBands(self):
         return [x.accessibleName() for x in self.bandsCBs if x.isChecked()]
 
-    def getFeatures1CFuncsAndNames(self):
-        channel = self.featuresSelector.channel
-        
+    def _getFeatures1CFuncsAndNames(self):
         featuresFuncs = []
         featuresNames = []
         
-        eeg = self.parentWidget().helper.eeg
         #HFD
         if self.hfdCB.isChecked():
-            featuresFuncs.append(lambda :                 eeg.HFD(channel))
+            featuresFuncs.append("HFD")
             featuresNames.append("HFD")
         #PFD    
         if self.pfdCB.isChecked():
-            featuresFuncs.append(lambda :                 eeg.PFD(channel))
+            featuresFuncs.append("PFD")
             featuresNames.append("PFD")
         #Hjorth Activity    
         if self.hjorthActivityCB.isChecked():
-            featuresFuncs.append(lambda :      eeg.hjorthActivity(channel))
+            featuresFuncs.append("hjorthActivity")
             featuresNames.append("Hjorth Activity")
         #Hjorth Mobility   
         if self.hjorthMobilityCB.isChecked():
-            featuresFuncs.append(lambda :      eeg.hjorthMobility(channel))
+            featuresFuncs.append("hjorthMobility")
             featuresNames.append("Hjorth Mobility")
         #Hjorth Complexity
         if self.hjorthComplexityCB.isChecked():
-            featuresFuncs.append(lambda :    eeg.hjorthComplexity(channel))
+            featuresFuncs.append("hjorthComplexity")
             featuresNames.append("Hjorth Complexity")
         #Sample Entropy
         if self.mseCB.isChecked():
-            featuresFuncs.append(lambda :                 eeg.MSE(channel))
+            featuresFuncs.append("MSE")
             featuresNames.append("Sample Entropy")
         #Lempel-Ziv Complexity
         if self.lzcCB.isChecked():
-            featuresFuncs.append(lambda : eeg.LZC(channel, normalize=True))
+            featuresFuncs.append("LZC")
             featuresNames.append("Lempel-Ziv Complexity")
         #Detrended Fluctuation Analysis
         if self.dfaCB.isChecked():
-            featuresFuncs.append(lambda :                 eeg.DFA(channel))
+            featuresFuncs.append("DFA")
             featuresNames.append("Detrended Fluctuation Analysis")
         #Engagement
         if self.engagementCB.isChecked():
-            featuresFuncs.append(lambda:             eeg.engagementLevel())
-            featuresNames.append("Engagement Level")
+            featuresFuncs.append("engagementLevel")
+            featuresNames.append("Engagement")
 
         return featuresFuncs, featuresNames
     
-    def getFeatures2CFuncsAndNames(self):
-        c1, c2 = self.C1Selector.channel, self.C2Selector.channel
-        
+    def _getFeatures0CFuncsAndNames(self):
         featuresFuncs = []
         featuresNames = []
         
-        eeg = self.parentWidget().helper.eeg
+        #Engagement
+        if self.engagementCB.isChecked():
+            featuresFuncs.append("engagementLevel")
+            featuresNames.append("Engagement")
+            
+        return featuresFuncs, featuresNames
+    
+    def _getFeatures2CFuncsAndNames(self):
+        featuresFuncs = []
+        featuresNames = []
+        
         #Synchronization Likelihood
         if self.slCB.isChecked():
-            featuresFuncs.append(lambda:eeg.synchronizationLikelihood((c1,c2)))
+            featuresFuncs.append("synchronizationLikelihood")
             featuresNames.append("Synchronization Likelihood")
         #Cross Correlation Coeficient
         if self.cccCB.isChecked():
-            featuresFuncs.append(lambda :                     eeg.CCC((c1,c2)))
+            featuresFuncs.append("CCC")
             featuresNames.append("CCC")
         
         return featuresFuncs, featuresNames
@@ -343,17 +317,15 @@ class PlotWindow(QtWidgets.QDialog):
 class BaseCanvas():
     timeField = "time(s)"
 
-    def __init__(self, func, plot, logFileName=None):
-        self.func = func
-        self.plotter = plot
+    def __init__(self, channels, helper, layout):
+        self.layout   = layout
+        self.channels = channels
+        self.helper   = helper
         
-        if logFileName:
-            self.logMode = True
-            self.logFileName = logFileName
-            self.logFile = open(self.logFileName, "w")
-            self.initLogFile()
+        if channels:
+            self.channelsNames = [self.helper.names[i] for i in self.channels]
         else:
-            self.logMode = False
+            self. channelsNames = None
 
     def initAnimation(self, start):
         self.sec = start
@@ -361,269 +333,205 @@ class BaseCanvas():
     def update_figure(self, delay):
         self.sec += delay
 
-    def closeFile(self):
-        if self.logMode:
-            self.logFile.close()
-
-    def initLogFile(self, fieldnames=[]):
-        self.writer = csv.DictWriter(self.logFile, fieldnames=fieldnames)
-        self.writer.writeheader()
-
 
 class TimeSignalCanvas(BaseCanvas):
     signalField = "signal"
 
-    def __init__(self, sampleRate, windowSize, *args, **kwargs):
-        self.__initAttributes__(sampleRate, windowSize)
-
-        BaseCanvas.__init__(self, *args, **kwargs)
-
-    def initLogFile(self):
-        self.fieldnames = [self.timeField, self.signalField]
-        super().initLogFile(self.fieldnames)
-
-    def __initAttributes__(self, sampleRate, windowSize):
-        self.sampleRate = sampleRate
-        self.windowSize = windowSize
-
-        self.duration = self.windowSize / self.sampleRate
-        self.arange = arange(0, self.duration, self.duration / self.windowSize)
-
-    def makePlot(self, x, y):
-        self.plot = self.plotter.plot(x, y, clear=True)
-
-    def getXY(self):
-        y = self.func()
-        x = self.arange + self.sec
+    def __init__(self, *args,):
+        super().__init__(*args)
         
-        return x, y
+        self.windowSize = self.helper.eeg.windowSize
+        self.sampleRate = self.helper.sampleRate
+        self.wsSeconds = self.windowSize/self.sampleRate
+        
+        self.plotters=[self.layout.addPlot(row=i, col=0, title=name) 
+                        for i, name in enumerate(self.channelsNames)]
 
-    def write(self, fieldnames, data):
-        self.writer.writerows(
-            [{field: value[i] for field, value in zip(fieldnames, data)} 
-                              for i in range(len(data[0]))             ]
-            )
-
+    
     def initAnimation(self, start):
         super().initAnimation(start)
+        self.start = start
+        self.end   = start + self.wsSeconds
         
-        x, y = self.getXY()
-        self.makePlot(x, y)
+        self.sStart = int(start*self.sampleRate)
         
-        if self.logMode:
-            self.write(self.fieldnames, [x, y])
-
+        self.makePlot()
+    
     def update_figure(self, delay):
         super().update_figure(delay)
+        self.end += delay
         
-        x, y = self.getXY()
-        self.makePlot(x, y)
+        self.makePlot()
         
-        if self.logMode:
-            newDataStart = -int(self.sampleRate * (delay))
-            self.write(self.fieldnames, [x[newDataStart:], y[newDataStart:]])
-
-
-class DescomposedTimeSignalCanvas(TimeSignalCanvas):
-
-    def __init__(self, bands, *args, **kwargs):
-        self.bands = bands
-
-        TimeSignalCanvas.__init__(self, *args, **kwargs)
-
-        self.plotter.addLegend()
-        self.legend = self.plotter.getPlotItem().legend
-
-    def initLogFile(self):
-        self.fieldnames = [self.timeField] + self.bands
+    def makePlot(self):
+        sEnd = int(self.end*self.sampleRate)
         
-        BaseCanvas.initLogFile(self, self.fieldnames)
-
-    def makeSubplot(self, x, i, band, y):
-        pen = pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, 13))
-        return self.plotter.plot(x,      y, 
-                                 name=band, 
-                                 pen=pen  )
-
-    def makeSubplots(self, x, ys):
-        self.plots = [self.makeSubplot(x, i, band, y) for i, (band, y) 
-                                                      in enumerate(ys.items())]
-
-    def getXY(self):
-        x, ys = super().getXY()
+        ys = self.helper.data[self.channels, self.sStart:sEnd]
+        x  = np.linspace(self.start, self.end, len(ys[0]))
         
-        return x, {band: values for band, values 
-                                in ys.items() 
-                                if band in self.bands}
-
-    def initAnimation(self, start):
-        BaseCanvas.initAnimation(self, start)
-        
-        if hasattr(self, "plots"):
-            self.cleanSubplots()
-        
-        x, ys = self.getXY()
-        self.makeSubplots(x, ys)
-        
-        if self.logMode:
-            self.write(self.fieldnames, [x] + list(ys.values()))
-
-    def update_figure(self, delay):
-        BaseCanvas.update_figure(self, delay)
-        
-        self.cleanSubplots()
-        
-        x, ys = self.getXY()
-        self.makeSubplots(x, ys)
-        
-        if self.logMode:
-            newDataStart = -int(self.sampleRate * (delay))
-            self.write(self.fieldnames, [v[newDataStart:]
-                                         for v in [x] + list(ys.values())])
-
-    def cleanSubplots(self):
-        for plot, band in zip(self.plots, self.bands):
-            plot.clear()
-            self.legend.removeItem(band)
-
-
-class AverageBandPowerCanvas(BaseCanvas):
-
-    def __init__(self, bands, *args, **kwargs):
-        BaseCanvas.__init__(self, *args, **kwargs)
-        
-        self.xAxe = self.plotter.getAxis("bottom")
-        
-        self.bands = bands
-        self.x = list(range(len(bands)))
-        
-        self.sum = {band: 0 for band in bands}
-        self.names = {band: band for band in bands}
-        
-        self.count = 0
-
-    def initLogFile(self):
-        self.fieldnames = [self.timeField] + self.bands
-        super().initLogFile(self.fieldnames)
-
-    def makePlot(self, data, names):
-        self.xAxe.setTicks([list(zip(self.x, names))])
-        
-        self.plot = self.plotter.plot(self.x, list(data.values()), 
-                                      symbol="o", clear=True     )
-
-    def update_figure(self, delay):
-        super().update_figure(delay)
-        
-        data = self.func()
-        self.count += 1
-        
-        for band in data:
-            self.sum[band] += data[band]
-            self.names[band] = band + \
-                              ": {:.4f}".format(self.sum[band] / self.count)
-        
-        self.makePlot(data, list(self.names.values()))
-        
-        if self.logMode:
-            self.write([self.sec] + list(data.values()))
-
-    def initAnimation(self, start):
-        super().initAnimation(start)
-        self.update_figure(0)
-
-    def write(self, data):
-        row = {fieldname: d for fieldname, d in zip(self.fieldnames, data)}
-        self.writer.writerow(row)
+        for plotter, y in zip(self.plotters, ys):
+            plotter.setRange(xRange=(self.end-self.wsSeconds,self.end))
+            plotter.plot(x,y, clear=True)
 
 
 class FeaturesCanvas(BaseCanvas):
-
-    def __init__(self, featuresNames, *args, **kwargs):
-        self.__initAttributes__(featuresNames)
-
-        BaseCanvas.__init__(self, *args, **kwargs)
-
-        self.legend = self.plotter.addLegend()
-
-    def __initAttributes__(self, featuresNames):
-        self.featuresNames = featuresNames
-        self.nFeatures = len(featuresNames)
+    def _wrapperFeatureName(self, name):
+        return "_"+name+"_%d" 
+    
+    def _initWrapper(self, funcsNames):
+        self.wrapper = wrap.Wrapper(self.helper, flat = True)
         
-        self.data = {name: [] for name in featuresNames}
+        for func in funcsNames:
+            self.wrapper.addFeature(func, self.channels)
+            
+        self.funcsNames = [self._wrapperFeatureName(name)
+                           for name in self.wrapper.featuresNames()]
+    
+    def _createPlotters(self):
+        self.plotters=[self.layout.addPlot(row=i, col=0, title=name) 
+                        for i, name in enumerate(self.channelsNames)]
+        for plotter in self.plotters:
+            plotter.addLegend()
+
+    def __init__(self, funcsNames, featuresNames, *args):
+        super().__init__(*args)
+        
+        self._initWrapper(funcsNames)
+        self._createPlotters()
+        
+        self.featuresNames = featuresNames
+        
         self.time = []
         
-        self.legendNames = {name: name for name in featuresNames}
 
-    def initLogFile(self):
-        self.fieldnames = [self.timeField] + self.featuresNames
-        super().initLogFile(self.fieldnames)
-
-    def makePlots(self):
-        for plot, (fName, data) in zip(self.plots, self.data.items()):
-            
-            plot.setData(self.time, data)
-            
-            for sample, label in self.legend.items:
-                if sample.item == plot:
-                    label.setText(self.legendNames[fName])
 
     def initAnimation(self, start):
         super().initAnimation(start)
-        
-        self.initMeansData()
-        
-        if hasattr(self, "plots"):
-            for p in self.plots:
-                p.clear()
-                
-        self.plots = []
-        
-        for i, name in enumerate(self.featuresNames):
-            pen=pyqtgraph.mkPen(pyqtgraph.intColor(3 * i, self.nFeatures * 3))
-            self.plots.append(self.plotter.plot(self.time, self.data[name], 
-                                                name=name, pen=pen        )
-                             )
-        
+        self.wrapper.reset()
         self.update_figure(0)
 
-    def initMeansData(self):
-        self.sum = {name: 0 for name in self.featuresNames}
-        self.count = 0
 
     def update_figure(self, delay):
         super().update_figure(delay)
-        currentTime = self.sec
-        self.time.append(currentTime)
+        self.time.append(self.sec)
         
-        self.count += 1
+        self.clear()
         
-        data = self.func()
+        self.makePlot()
         
-        for fName, fValue in data.items():
-            self.data[fName].append(fValue)
-            self.sum[fName] += fValue
-            self.legendNames[fName] = fName + \
-                                ": {:.4f}".format(self.sum[fName] / self.count)
+    def makePlot(self):
+        self.wrapper.getFeatures()
+        data = self.wrapper.getStoredFeatures()
         
-        self.makePlots()
-        
-        if self.logMode:
-            data[self.timeField] = currentTime
-            self.write(data)
+        for i, plotter in enumerate(self.plotters):
+            for (j,featureName), funcName in zip(enumerate(self.featuresNames),
+                                                           self.funcsNames):
+                #The color of the plotting of each feature
+                pen=pg.mkPen(pg.intColor(j))
+                
+                #Get the data asociated to one feature
+                dataName = self.getDataName(funcName, i)
+                d=data[dataName]
+                
+                #Get the mean value of the data
+                mean = np.mean(d)
+                legend = featureName+": %.3f"%mean
+                
+                #Plot the data
+                plotter.plot(self.time, d, pen = pen, name=legend)
+    
+    def getDataName(self, funcName,i):
+        return funcName%i
 
-    def write(self, data):
-        self.writer.writerow(data)
+    
+    def clear(self):
+        for plotter in self.plotters:
+            plotter.clear()
+            
+            # This is done due to a bug in pyqtgraph
+            # In the next version will be fixed
+            labels = [label.text for _, label in plotter.legend.items]
+            
+            for label in labels:
+                plotter.legend.removeItem(label)     
 
+class BandValuesCanvas(FeaturesCanvas):
+    def __init__(self, *args):
+        super().__init__(["getAverageBandValues"], defaultBandsNames, *args)
+        
+    def _wrapperFeatureName(self, name):
+        return super()._wrapperFeatureName(name) + "_%s"
+    
+    def makePlot(self):
+        self.wrapper.getFeatures()
+        data = self.wrapper.getStoredFeatures()
+        
+        for i, plotter in enumerate(self.plotters):
+            for j, featureName in enumerate(self.featuresNames):
+                pen=pg.mkPen(pg.intColor(j))
+                
+                dataName = self.funcsNames[0]%(i, featureName)
+                d = data[dataName]
+                
+                mean = np.mean(d)
+                legend = featureName+": %.3f"%mean
+                
+                plotter.plot(self.time, d, pen = pen, name=legend)
+
+class TwoChannelsCanvas(FeaturesCanvas):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.channels = list(combinations(self.channels, 2))
+    
+    def _createPlotters(self):
+        self.plotters=[]
+        
+        combs = list(combinations(self.channelsNames,2))
+        size = int(np.ceil(np.sqrt(len(combs))))
+        
+        for i, name in enumerate(combs):
+            self.plotters.append(self.layout.addPlot(row=i//size, 
+                                                     col=i%size, 
+                                                     title=name))
+            
+        for plotter in self.plotters:
+            plotter.addLegend()
+    
+    def _wrapperFeatureName(self, name):
+        return "_"+name+"_(%d, %d)"
+        
+    def getDataName(self, funcName,i):
+        return funcName%self.channels[i]
+
+class ChannelessCanvas(FeaturesCanvas):
+    def _initWrapper(self, funcsNames):
+        self.wrapper = wrap.Wrapper(self.helper, flat = True)
+        
+        for func in funcsNames:
+            self.wrapper.addFeature(func)
+            
+        self.funcsNames = ["_"+name for name in self.wrapper.featuresNames()]
+    
+    def _createPlotters(self):
+        self.plotters=[self.layout.addPlot()]
+  
+        self.plotters[0].addLegend()
+        
+    def getDataName(self, funcName,i):
+        return funcName
+                  
 
 class FFTCanvas(BaseCanvas):
-    def __init__(self, sampleRate, windowSize, *args, **kargs):
-        self.sampleRate = sampleRate
-        self.windowSize = windowSize
+    def __init__(self, *args):
+        super().__init__(*args)
+        
+        windowSize = self.windowSize = self.helper.eeg.windowSize
+        sampleRate = self.sampleRate = self.helper.sampleRate
         
         self.x = (np.arange(windowSize//2)+1)*sampleRate/windowSize
         
-        super().__init__(*args, **kargs)
+        self.plotters=[self.layout.addPlot(row=i, col=0, title=name) 
+                        for i, name in enumerate(self.channelsNames)]
     
     def initAnimation(self, start):
         super().initAnimation(start)
@@ -631,16 +539,13 @@ class FFTCanvas(BaseCanvas):
     
     def update_figure(self, delay):
         super().update_figure(delay)
-        fft = self.func()[1:self.windowSize//2+1]
-        self.plotter.plot(self.x,fft,clear=True)
         
-        if self.logMode:
-            wData = {x:y for x,y in zip(self.x, fft)}
-            wData[self.timeField] = self.sec
-            self.writer.writerow(wData)
-    
-    def initLogFile(self):
-        self.fieldnames = [self.timeField]+list(self.x)
-        super().initLogFile(self.fieldnames)
+        ffts = self.helper.eeg.getMagnitudes(self.channels)
+        ffts = ffts[:,1:self.windowSize//2+1]
+        
+        for plotter, fft in zip(self.plotters, ffts):
+            plotter.plot(self.x,fft,clear=True)
+        
+
         
         

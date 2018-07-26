@@ -3,7 +3,7 @@
 
 from setuptools import setup, find_packages
 
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 setup(name='veegs',
       version = __version__,

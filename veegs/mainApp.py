@@ -201,7 +201,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         iterStart = int(start * sampleRate)
         iterStop  = int(stop  * sampleRate)
         
-        self.iterator = self.helper[iterStart:iterStop:iterStep]
+        self.iterator = iter(self.helper[iterStart:iterStop:iterStep])
         
         try:
             self.iterator.__next__()
