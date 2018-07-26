@@ -14,9 +14,9 @@ from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QSemaphore
 from eeglib.helpers import CSVHelper
 
 # veegs imports
-from veegs.loopTrigger import LoopTrigger
-from veegs.plots import PlotWindow
-from veegs.options import OptionsDialog
+from .loopTrigger import LoopTrigger
+from .plots import PlotWindow
+from .options import OptionsDialog
 
 # Name of the program to display
 progname = "VEEGS"

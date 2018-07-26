@@ -15,58 +15,9 @@ from itertools import combinations
 from eeglib.eeg import defaultBands
 import eeglib.wrapper as wrap
 
+from .channelSelector import ChannelSelector, Synchronizer
+
 defaultBandsNames = list(defaultBands.keys())
-
-
-class ChannelSelector(QtWidgets.QGroupBox):
-    """
-    This is a widget to select the channel to use when using a feature.
-    """
-    def __init__(self, nChannels, parent=None, names = None,
-                                   title="Channel Selector"):
-        QtWidgets.QGroupBox.__init__(self, parent)
-        
-        self.setTitle(title)
-        self.channel = set()        #Default Channel
-        
-        #Number of rows of the layout. It's the squared root of the number of
-        #channels
-        rows = int(np.ceil(np.sqrt(nChannels)))
-        
-        grid = QtWidgets.QGridLayout()
-        
-        #This is a callback that change the channel when another one is
-        #selected
-        def setChannel(toggled, chann):
-            if toggled:
-                self.channel.add(chann)
-            else:
-                self.channel.remove(chann)
-        
-        #This loop go through the rows and adds a checkBox for each channel
-        for i in range(rows):
-            for j in range(rows):
-                if nChannels > 0:  #Checking if all the channels has ben added
-                    nChannels -= 1
-                    
-                    channel = i * rows + j
-                    if names:
-                        name = names[channel]
-                    else:
-                        name=str(channel)
-                        
-                    rb = QtWidgets.QCheckBox(name)
-                        
-                    rb.toggled.connect(
-                     lambda toggled, chann=channel: setChannel(toggled, chann))
-                    
-                    grid.addWidget(rb, i, j)
-                    
-        self.setLayout(grid)
-        
-    def getChannel(self):
-        return list(self.channel)
-
 
 #Tabs names
 rawTab   = "&Raw"
@@ -101,25 +52,31 @@ class PlotWindow(QtWidgets.QDialog):
         self.__addSelectors(nChannels, names)
 
     def __addSelectors(self, nChannels, names = None):
+        synchronizer = Synchronizer()
         #Raw data
-        self.rawSelector = ChannelSelector(nChannels, self, names)
-        self.rawTab.layout().addWidget(self.rawSelector)
+        self.baseSelector = ChannelSelector(nChannels, self, names)
+        self.rawTab.layout().addWidget(self.baseSelector)
+        self.baseSelector.synchronize(synchronizer)
         
         #Average Band Power
         self.averageBPSelector = ChannelSelector(nChannels, self, names)
         self.averagePowerBandTab.layout().addWidget(self.averageBPSelector)
+        self.averageBPSelector.synchronize(synchronizer)
         
         # FFT
         self.fftSelector = ChannelSelector(nChannels,self, names)
         self.fftTab.layout().addWidget(self.fftSelector)
+        self.fftSelector.synchronize(synchronizer)
         
         #One Channel Features
         self.featuresSelector = ChannelSelector(nChannels, self, names)
         self.oneChannelTab.layout().addWidget(self.featuresSelector)
+        self.featuresSelector.synchronize(synchronizer)
         
         #Two Channel Features
         self.C2Selector = ChannelSelector(nChannels, self, names)
         self.twoChannelsTab.layout().addWidget(self.C2Selector)
+        self.C2Selector.synchronize(synchronizer)
     
     def __initApButton(self):
         def addPlot():
@@ -129,12 +86,11 @@ class PlotWindow(QtWidgets.QDialog):
             self.setWindowTitle(text if text != "" else tabName[1:])
             
             channelError = featureError = False
+            channel = self.baseSelector.getChannel()
             
             #Raw data
             if tabName == rawTab:
                 self.canvasClass = TimeSignalCanvas;
-                
-                channel = self.rawSelector.getChannel()
                     
                 self.canvasArgs = (channel,)
                 
@@ -144,8 +100,6 @@ class PlotWindow(QtWidgets.QDialog):
             elif tabName == bandsTab:
                 self.canvasClass = BandValuesCanvas
                 
-                channel = self.averageBPSelector.getChannel()
-                
                 self.canvasArgs = (channel,)
                 
                 channelError = len(channel)==0
@@ -153,8 +107,6 @@ class PlotWindow(QtWidgets.QDialog):
             #FFT
             elif tabName == fftTab:
                 self.canvasClass = FFTCanvas
-                
-                channel  = self.fftSelector.getChannel()
                 
                 self.canvasArgs = (channel,)
                 
@@ -164,7 +116,6 @@ class PlotWindow(QtWidgets.QDialog):
             elif tabName == c1Tab:
                 self.canvasClass = FeaturesCanvas
                 
-                channel  = self.featuresSelector.getChannel()
                 funcs, names = self._getFeatures1CFuncsAndNames()
                 
                 self.canvasArgs = (funcs, names, channel)
@@ -176,7 +127,6 @@ class PlotWindow(QtWidgets.QDialog):
             elif tabName == c2Tab:
                 self.canvasClass = TwoChannelsCanvas
                 
-                channel  = self.C2Selector.getChannel()
                 funcs, names = self._getFeatures2CFuncsAndNames()
                 
                 self.canvasArgs = (funcs, names, channel)

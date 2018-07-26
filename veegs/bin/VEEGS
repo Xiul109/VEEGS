@@ -5,7 +5,7 @@ import sys
 
 from PyQt5 import QtWidgets
 
-from veegs.mainApp import *
+from veegs.mainApp import ApplicationWindow, progname
 
 qApp = QtWidgets.QApplication(sys.argv)
 aw = ApplicationWindow()

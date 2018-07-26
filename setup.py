@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from setuptools import setup, find_packages
+from setuptools import setup
 
-__version__ = "0.2.4"
+__version__ = "0.2.5"
 
 setup(name='veegs',
       version = __version__,
