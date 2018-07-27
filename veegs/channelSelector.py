@@ -94,7 +94,6 @@ class Synchronizer():
         self.selectors = []
         
     def synchronizeChannel(self, channels):
-        print(self.selectors)
         for selector in self.selectors:
             selector.setChannel(channels)
     

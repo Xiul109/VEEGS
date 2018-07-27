@@ -20,12 +20,12 @@ from .channelSelector import ChannelSelector, Synchronizer
 defaultBandsNames = list(defaultBands.keys())
 
 #Tabs names
-rawTab   = "&Raw"
-bandsTab = "&Average Band Power"
-fftTab   = "&FFT"
-c1Tab    = "&One Channel Features"
-c2Tab    = "&Two Channels Features"
-c0Tab    = "&Channeless Features"
+rawTab   = "Raw"
+bandsTab = "Average Band Power"
+fftTab   = "FFT"
+c1Tab    = "One Channel Features"
+c2Tab    = "Two Channels Features"
+c0Tab    = "Channeless Features"
 
 
 class PlotWindow(QtWidgets.QDialog):
@@ -80,12 +80,19 @@ class PlotWindow(QtWidgets.QDialog):
     
     def __initApButton(self):
         def addPlot():
+            # Name of current tab
             tabName = self.tabWidget.tabText(self.tabWidget.currentIndex())
+            # In order to fix a posible bug that occurs with KDE the "&"
+            # symbols in the texts must be erased
+            tabName = tabName.replace("&","")
             
             text = self.nameTB.text()
-            self.setWindowTitle(text if text != "" else tabName[1:])
-            
+            self.setWindowTitle(text if text != "" else tabName)
+           
+            #Error flags
             channelError = featureError = False
+            
+            #Channel selected
             channel = self.baseSelector.getChannel()
             
             #Raw data
