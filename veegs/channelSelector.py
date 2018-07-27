@@ -100,3 +100,26 @@ class Synchronizer():
     def synchronizeSelectAll(self, state):
         for selector in self.selectors:
             selector.selectAll.setChecked(state)
+            
+class ChannelSelectorDialog(QtWidgets.QDialog):
+    def __init__(self, nChannels, names, parent=None):
+        super().__init__(parent)
+        
+        #Add layout
+        layout = QtWidgets.QVBoxLayout()
+        self.setLayout(layout)
+        
+        #Add channelSelector widget
+        self.channelSelector = ChannelSelector(nChannels, names = names)
+        layout.addWidget(self.channelSelector)
+        self.channelSelector.selectAll.setChecked(True)
+        
+        #Add buttons
+        buttonBox = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok  |
+                                             QtWidgets.QDialogButtonBox.Cancel)
+        layout.addWidget(buttonBox)
+        buttonBox.accepted.connect(self.accept)
+        buttonBox.rejected.connect(self.reject)
+    
+    def getChannel(self):
+        return list(self.channelSelector.channel)

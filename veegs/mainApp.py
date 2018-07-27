@@ -11,16 +11,16 @@ from PyQt5 import QtCore, QtWidgets, QtGui, uic
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QSemaphore
 
 # eeglib imports
-from eeglib.helpers import CSVHelper
+from eeglib.helpers import CSVHelper, EDFHelper
 
 # veegs imports
 from .loopTrigger import LoopTrigger
 from .plots import PlotWindow
 from .options import OptionsDialog
+from .channelSelector import ChannelSelectorDialog
 
 # Name of the program to display
 progname = "VEEGS"
-
 
 class ApplicationWindow(QtWidgets.QMainWindow):
     """
@@ -91,31 +91,55 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     def __initBrowseButton(self):
         def openFileDialog():
+            fileFilter = "CSV-Files (*.csv);; EDF-Files (*.edf)"
             filename = QtWidgets.QFileDialog.getOpenFileName(self             ,
                                                directory = self.prevBrowseDir ,
-                                               filter    = "CSV-Files (*.csv)")
-            print("Archivo:", filename)
-            
+                                               filter    = fileFilter)
+           
             if filename[0] != "":
                 try:
-                    sampleRate = self.eegSettings["sampleRate"] = int(
-                                                   self.sampleRateInput.text())
-                    
+                    #Settings preparation
                     ica=self.icaCB.isChecked()
                     normalize=self.normalizeCB.isChecked()
                     
-                    self.helper = CSVHelper(filename[0], sampleRate=sampleRate,
-                                            ICA=ica, normalize=normalize)
+                    #Helper creation
+                    ext = os.path.splitext(filename[0])[1]
+                    if ext == ".edf":
+                        self.helper = EDFHelper(filename[0],
+                                                ICA=ica, normalize=normalize)
+                    else:
+                        sampleRate, state = QtWidgets.QInputDialog.getInt(self,
+                                "Sample Rate", "Sample Rate", value=128, min=0)
+                        
+                        self.helper = CSVHelper(filename[0],
+                                                sampleRate=sampleRate,
+                                                ICA=ica, normalize=normalize)
                     
+                    # Letting the user select the channels
+                    nChannels = self.helper.nChannels
+                    names     = self.helper.names
+                    dialog = ChannelSelectorDialog(nChannels, names, self)
+                    if(dialog.exec()):
+                        self.helper.selectSignals(dialog.getChannel())
+                    
+                    del dialog
+                    
+                    # Next time button clicked the dialog will be opened in
+                    # prevBrowseDir
                     self.prevBrowseDir = filename[0]
                     
+                    #Storing windowSize and sampleRate
                     windowSize = self.helper.eeg.windowSize
                     self.eegSettings["windowSize"] = windowSize
+                    sampleRate = self.helper.sampleRate
+                    self.eegSettings["sampleRate"] = self.helper.sampleRate
                     
+                    #Giving feedback to user
                     self.feedBackLabel.setText("File oppened properly")
                     self.stopInput.setText(str(len(self.helper) / sampleRate))
                     self.windowSizeInput.setText(str(windowSize))
                     
+                    #Unlocking locked inputs
                     self.__setState("WAIT_PLAY")
                     
                 except IOError:
@@ -125,8 +149,8 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                     
                 except ValueError:
                     QtWidgets.QMessageBox.warning(self, "Error",
-                                                      "Error reading the \
-                                                      file. Incorrect format?",
+                                                  "Error reading the file."+
+                                                  "Incorrect format?",
                                                   QtWidgets.QMessageBox.Ok)
                     
                 except Exception as e:
@@ -150,10 +174,6 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             
             inputLine.setStyleSheet(styleSheet)
             self.setWindowSizeButton.setEnabled(enabled)
-
-        srInput = self.sampleRateInput
-        srInput.setValidator(QtGui.QIntValidator())
-        srInput.textChanged.connect(lambda text: checkText(srInput, text))
 
         wsInput = self.windowSizeInput
         wsInput.setValidator(QtGui.QIntValidator())
