@@ -30,10 +30,13 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     def __init__(self):
         QtWidgets.QMainWindow.__init__(self)
+        
         selfdir=os.path.dirname(__file__)
         uic.loadUi(os.path.join(selfdir,"mainwindow.ui"), self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        
         self.app= QtWidgets.QApplication.instance()
+        self.state = "INIT"
 
         self.eegSettings = {}
 
@@ -50,24 +53,34 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.functions=[]
         self.windowList = []
 
-    #Revisar
+
     def __setState(self, state):
-        def enabledElements(dsB, esB, rB, playEl=True):
+        def enabledElements(dsB, esB, rB, runEl, play):
             self.dataSourceBox.setEnabled(dsB)
             self.actionBrowse.setEnabled(dsB)
+            
             self.windowSizeBox.setEnabled(esB)
+            
             self.runBox.setEnabled(rB)
-            self.playButton.setEnabled(playEl)
-            self.startInput.setEnabled(playEl)
-            self.stopInput.setEnabled(playEl)
-            self.actionNewPlot.setEnabled(rB and playEl)
-            self.newPlotButton.setEnabled(rB and playEl)
-            self.actionOptions.setEnabled(playEl)
+            
+            self.startInput.setEnabled(runEl)
+            self.stopInput.setEnabled(runEl)
+            self.actionOptions.setEnabled(runEl)
+            self.actionNewPlot.setEnabled(runEl)
+            self.newPlotButton.setEnabled(runEl)
+            
+            self.playButton.setEnabled(play)
+            self.pauseButton.setEnabled(not play)
+            
 
-        if state == "WAIT_PLAY":
-            enabledElements(True, True, True)
-        elif state == "WAIT_STOP":
-            enabledElements(False, False, True, False)
+        if   state == "STOP":
+            enabledElements(True, True, True, True, True)
+        elif state == "PLAY":
+            enabledElements(False, False, True, False, False)
+        elif state == "PAUSE":
+            enabledElements(False, False, True, False, True)
+        
+        self.state = state
 
     def __initOptionsAction(self):
         def openOptionsDialog():
@@ -140,7 +153,10 @@ class ApplicationWindow(QtWidgets.QMainWindow):
                     self.windowSizeInput.setText(str(windowSize))
                     
                     #Unlocking locked inputs
-                    self.__setState("WAIT_PLAY")
+                    self.__setState("STOP")
+                    
+                    #Reset plots if there where another file previously
+                    self._resetPlots()
                     
                 except IOError:
                     QtWidgets.QMessageBox.warning(self, "Error",
@@ -184,74 +200,91 @@ class ApplicationWindow(QtWidgets.QMainWindow):
             windowSize = int(self.windowSizeInput.text())
             self.eegSettings["windowSize"] = windowSize
             self.feedBackLabel.setText("New settings have been setted")
-            self.__setState("WAIT_PLAY")
+            self.__setState("STOP")
             self.helper.prepareEEG(windowSize)
-            for win in self.windowList:
-                win.reset()
+            self._resetPlots()
+            
 
         self.setWindowSizeButton.clicked.connect(setWindowSize)
 
     def __initRunInputs(self):
         self.startInput.setValidator(QtGui.QDoubleValidator())
         self.stopInput.setValidator(QtGui.QDoubleValidator())
-
-    def __initRunButtons(self):
-        def play():
-            self.__setState("WAIT_STOP")
-
-            self.play(float(self.startInput.text()),
-                      float(self.stopInput.text()))
-
-        self.playButton.clicked.connect(play)
-        self.stopButton.clicked.connect(self.stop)
-
-    def stop(self):
-        self.__setState("WAIT_PLAY")
-
+        
+    def _pause(self):
         self.semaphore.release(1)
         self.stopSignal.emit()
         self.loopThread.quit()
         self.loopThread.wait()
-
-    def play(self, start, stop):
-        self.timePosition = start
         
-        sampleRate = self.eegSettings["sampleRate"]
-        iterStep = sampleRate * self.simDelay
-        iterStart = int(start * sampleRate)
-        iterStop  = int(stop  * sampleRate)
+        self.__setState("PAUSE")
+            
+    def _stop(self):
+        self._pause()
         
-        self.iterator = iter(self.helper[iterStart:iterStop:iterStep])
+        self._resetPlots()
         
-        try:
-            self.iterator.__next__()
-        except:
-            QtWidgets.QMessageBox.warning(self, "Error", "The start and stop\
-                                                         points are too close",
-                                          QtWidgets.QMessageBox.Ok)
-
-        for window in self.windowList:
-            window.initAnimation(start)
-
+        self.__setState("STOP")
+        
+    
+    def _play(self):     
+        #Input values
+        start = float(self.startInput.text())
+        stop  = float(self.stopInput.text())
+        
+        #If state is PAUSE skip these steps
+        if self.state != "PAUSE":
+            self.timePosition = start
+        
+            #Iterator preparation
+            sampleRate = self.eegSettings["sampleRate"]
+            iterStep = sampleRate * self.simDelay
+            iterStart = int(start * sampleRate)
+            iterStop  = int(stop  * sampleRate)
+            
+            self.iterator = iter(self.helper[iterStart:iterStop:iterStep])
+            
+            #Next iteration to test if values are correct
+            try:
+                next(self.iterator)
+            except StopIteration:
+                QtWidgets.QMessageBox.warning(self, "Error", 
+                                 "The start and stop points are too close",
+                                              QtWidgets.QMessageBox.Ok)
+                return
+            #Initialize animations of windows
+            for window in self.windowList:
+                window.initAnimation(start)
+        
+        #Init semaphore and loopTrigger
         self.semaphore=QSemaphore(0)
         loop = LoopTrigger(self.semaphore,minDelay=self.rtDelay)
         self.loop=loop
-
+        
+        #Connect signals
         loop.sigUpdate.connect(self.__updateFields)
         loop.sigUpdate.connect(self.__playAnimation)
 
         self.stopSignal.connect(loop.stop)
-
+        
+        #Init thread
         self.loopThread = QThread()
         loop.moveToThread(self.loopThread)
         self.loopThread.started.connect(loop.loop)
         self.loopThread.start()
-
+        
+        #Set new state
+        self.__setState("PLAY")
+            
+    def __initRunButtons(self):
+        self.playButton .clicked.connect(self._play )
+        self.stopButton .clicked.connect(self._stop )  
+        self.pauseButton.clicked.connect(self._pause)
 
     @pyqtSlot()
     def __playAnimation(self):
         try:
-            self.iterator.__next__()
+            next(self.iterator)
             for function in self.functions:
                 try:
                     function()
@@ -263,12 +296,16 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
         except Exception as e:
             print(e)
-            self.stop()
+            self._pause()
 
     @pyqtSlot()
     def __updateFields(self):
         self.timePosition += self.simDelay
         self.startInput.setText("%.2f" % self.timePosition)
+    
+    def _resetPlots(self):
+        for win in self.windowList:
+            win.reset()
 
     def deleteWinFromList(self, win):
         self.windowList.remove(win)

@@ -155,31 +155,31 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="1" colspan="2">
+       <item row="0" column="1" colspan="3">
         <widget class="QLineEdit" name="startInput">
          <property name="text">
           <string>0</string>
          </property>
         </widget>
        </item>
-       <item row="1" column="3">
+       <item row="1" column="4">
         <widget class="QLabel" name="label_7">
          <property name="text">
           <string>s</string>
          </property>
         </widget>
        </item>
-       <item row="1" column="1" colspan="2">
+       <item row="1" column="1" colspan="3">
         <widget class="QLineEdit" name="stopInput"/>
        </item>
-       <item row="0" column="3">
+       <item row="0" column="4">
         <widget class="QLabel" name="label_5">
          <property name="text">
           <string>s</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="2">
+       <item row="3" column="3">
         <widget class="QPushButton" name="stopButton">
          <property name="text">
           <string/>
@@ -198,6 +198,17 @@
          <property name="icon">
           <iconset>
            <normaloff>resources/play.png</normaloff>resources/play.png</iconset>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="2">
+        <widget class="QPushButton" name="pauseButton">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="icon">
+          <iconset>
+           <normaloff>resources/pause.png</normaloff>resources/pause.png</iconset>
          </property>
         </widget>
        </item>
