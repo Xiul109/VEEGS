@@ -1,4 +1,5 @@
 import os
+import sys
 
 from PyQt5 import QtCore, QtWidgets, QtGui,uic
 
@@ -6,26 +7,36 @@ class OptionsDialog(QtWidgets.QDialog):
     """
     This is a menu for establishing especial options in the program.
     """
-    def __init__(self, parent=None, rtDelay=0.1, simDelay=0.1):
+    def __init__(self, parent=None, samples=16, speedMul=1.0):
         QtWidgets.QDialog.__init__(self, parent)
         
         selfdir = os.path.dirname(__file__)
         uic.loadUi(os.path.join(selfdir,"optionsDialog.ui"), self)
         self.setAttribute(QtCore.Qt.WA_DeleteOnClose)
 
-        self.__initInputs(rtDelay,simDelay)
+        self.__initInputs(samples,speedMul)
         self.__initAccepted()
 
-    def __initInputs(self,rtDelay,simDelay):
-        self.rtInput.setValidator(  QtGui.QDoubleValidator() )
-        self.rtInput.setText(  str(rtDelay)  )
+    def __initInputs(self,samples,speedMul):
+        self.siInput.setValidator(QtGui.QIntValidator(1, sys.maxsize))
+        self.siInput.setText(str(samples))
         
-        self.simInput.setValidator( QtGui.QDoubleValidator() )
-        self.simInput.setText( str(simDelay) )
+        self.speedMulInput.setValidator(QtGui.QDoubleValidator(0, 
+                                                        sys.float_info.max, 4))
+        self.speedMulInput.setText(str(speedMul))
 
     def __initAccepted(self):
         def setDelays():
-            self.parent().rtDelay  = float(self.rtInput.text() )
-            self.parent().simDelay = float(self.simInput.text())
+            samples  = float(self.siInput.text())
+            speedMul = float(self.speedMulInput.text())
+            
+            sampleRate = self.parent().helper.sampleRate
+            
+            simDelay = samples/sampleRate
+            rtDelay  = simDelay/speedMul if speedMul!=0 else 0
+            
+            self.parent().simDelay = simDelay 
+            self.parent().rtDelay  = rtDelay
+            
 
         self.buttonBox.accepted.connect(setDelays)

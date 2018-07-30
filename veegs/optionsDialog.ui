@@ -38,22 +38,33 @@
       <item row="0" column="0">
        <widget class="QLabel" name="label">
         <property name="text">
-         <string>Real Time Delay (s)</string>
+         <string>Samples/Iteration</string>
         </property>
        </widget>
       </item>
       <item row="1" column="0">
        <widget class="QLabel" name="label_2">
         <property name="text">
-         <string>Simulation Delay (s)</string>
+         <string>Speed Multiplicator</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QLineEdit" name="rtInput"/>
+       <widget class="QLineEdit" name="siInput">
+        <property name="whatsThis">
+         <string>The number of new samples added to the window in each iteration.</string>
+        </property>
+       </widget>
       </item>
       <item row="1" column="1">
-       <widget class="QLineEdit" name="simInput"/>
+       <widget class="QLineEdit" name="speedMulInput">
+        <property name="statusTip">
+         <string>If 0 the simulation will run at the fastest posible speed.</string>
+        </property>
+        <property name="whatsThis">
+         <string>The speed of the simulation with respect to the time.</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>

@@ -6,6 +6,8 @@ from __future__ import unicode_literals
 import sys
 import os
 
+import numpy as np
+
 # PyQt imports
 from PyQt5 import QtCore, QtWidgets, QtGui, uic
 from PyQt5.QtCore import QThread, pyqtSlot, pyqtSignal, QSemaphore
@@ -48,7 +50,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         self.__initNewPlotAction()
         self.__initOptionsAction()
 
-        self.rtDelay = self.simDelay=0.1
+        self.rtDelay = self.simDelay=1/8
 
         self.functions=[]
         self.windowList = []
@@ -84,9 +86,14 @@ class ApplicationWindow(QtWidgets.QMainWindow):
 
     def __initOptionsAction(self):
         def openOptionsDialog():
-            od=OptionsDialog(parent=self,
-                             rtDelay=self.rtDelay, 
-                             simDelay=self.simDelay)
+            sampleRate = self.helper.sampleRate
+            
+            samples  = int(np.round(self.simDelay * sampleRate))
+            speedMul = self.simDelay/self.rtDelay
+            
+            od=OptionsDialog(parent   = self,
+                             samples  = samples,
+                             speedMul = speedMul)
             od.show()
             
         self.actionOptions.triggered.connect(openOptionsDialog)

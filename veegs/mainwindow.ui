@@ -269,7 +269,7 @@
   </action>
   <action name="actionOptions">
    <property name="enabled">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>&amp;Options</string>
