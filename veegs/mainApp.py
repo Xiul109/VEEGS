@@ -245,7 +245,7 @@ class ApplicationWindow(QtWidgets.QMainWindow):
         
             #Iterator preparation
             sampleRate = self.eegSettings["sampleRate"]
-            iterStep = round(sampleRate * self.simDelay)
+            iterStep = int(round(sampleRate * self.simDelay))
             iterStart = int(start * sampleRate)
             iterStop  = int(stop  * sampleRate)
             #simDelay correction for int aproximation
